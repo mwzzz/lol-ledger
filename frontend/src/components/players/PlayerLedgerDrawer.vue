@@ -1,0 +1,235 @@
+<template>
+  <el-drawer
+    :model-value="modelValue"
+    :title="player ? `${player.game_id} 的流水` : '押金流水'"
+    size="660px"
+    @update:model-value="close"
+  >
+    <div v-if="player" class="summary">
+      <div>
+        <span class="muted">当前余额</span>
+        <DepositBadge
+          :cents="shownBalance"
+          :deposit-cents="player.deposit_cents"
+          :bonus-cents="currentBonus"
+          :level="player.deposit_level"
+        />
+      </div>
+      <div><span class="muted">总局数</span><b>{{ player.games_played }}</b></div>
+      <div><span class="muted">累计充值</span><b>¥{{ formatCents(totalIn) }}</b></div>
+      <div><span class="muted">累计赠金</span><b>¥{{ formatCents(bonusIn) }}</b></div>
+      <div><span class="muted">累计支出</span><b>¥{{ formatCents(totalOut) }}</b></div>
+    </div>
+
+    <el-table :data="rows" v-loading="loading" size="small" height="calc(100vh - 220px)">
+      <el-table-column label="时间" width="132">
+        <template #default="{ row }">
+          <span class="muted">{{ formatShort(row.created_at) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="原因" min-width="156">
+        <template #default="{ row }">
+          <div class="cell-main">{{ row.reason_label }}</div>
+          <div v-if="row.note" class="cell-sub">{{ row.note }}</div>
+          <div v-if="row.bonus_amount_cents > 0" class="cell-sub">
+            其中赠金抵扣 ¥{{ formatCents(row.bonus_amount_cents) }}
+          </div>
+        </template>
+      </el-table-column>
+      <el-table-column label="变动" width="98" align="right">
+        <template #default="{ row }">
+          <MoneyText :cents="row.signed_amount_cents" change />
+        </template>
+      </el-table-column>
+      <el-table-column label="变动后" width="126" align="right">
+        <template #default="{ row }">
+          <span class="mono">¥{{ formatCents(row.balance_after_cents) }}</span>
+          <div v-if="row.bonus_after_cents > 0" class="cell-sub">
+            赠金 ¥{{ formatCents(row.bonus_after_cents) }}
+          </div>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作人" width="88">
+        <template #default="{ row }">
+          <span class="muted">{{ row.operator?.display_name || '-' }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="72" align="right">
+        <template #default="{ row }">
+          <el-button
+            v-if="canVoid(row)"
+            link
+            type="warning"
+            @click="onVoid(row)"
+          >
+            撤销
+          </el-button>
+          <span v-else-if="row.reason === 'add_bonus' && row.voided" class="muted">已撤销</span>
+          <el-tooltip
+            v-else-if="row.reason === 'add_bonus'"
+            content="这笔赠金已被茶水消耗，无法撤销"
+            placement="top"
+          >
+            <span class="muted">已消耗</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <div class="pager">
+      <el-pagination
+        v-model:current-page="page"
+        :page-size="pageSize"
+        :total="total"
+        layout="prev, pager, next"
+        small
+        @current-change="load"
+      />
+    </div>
+  </el-drawer>
+</template>
+
+<script setup lang="ts">
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { computed, ref, watch } from 'vue'
+
+import { moneyApi, playerApi } from '@/api'
+import type { LedgerEntryRow, PlayerRow } from '@/api/types'
+import DepositBadge from '@/components/common/DepositBadge.vue'
+import MoneyText from '@/components/common/MoneyText.vue'
+import { formatShort } from '@/utils/datetime'
+import { formatCents } from '@/utils/money'
+
+const props = defineProps<{
+  modelValue: boolean
+  player: PlayerRow | null
+}>()
+
+const emit = defineEmits<{
+  (event: 'update:modelValue', value: boolean): void
+  (event: 'changed'): void
+}>()
+
+const rows = ref<LedgerEntryRow[]>([])
+const total = ref(0)
+const page = ref(1)
+const pageSize = 20
+const loading = ref(false)
+const currentBonus = ref(0)
+
+const shownBalance = computed(
+  () => (props.player?.deposit_cents || 0) + currentBonus.value,
+)
+
+const totalIn = ref(0)
+const totalOut = ref(0)
+const bonusIn = ref(0)
+
+watch(
+  () => props.modelValue,
+  async (visible) => {
+    if (!visible || !props.player) return
+    page.value = 1
+    currentBonus.value = props.player.bonus_cents
+    await load()
+    await refreshDetail()
+  },
+)
+
+async function refreshDetail() {
+  if (!props.player) return
+  try {
+    const detail = await playerApi.get(props.player.id)
+    totalIn.value = detail.total_in_cents || 0
+    totalOut.value = detail.total_out_cents || 0
+    bonusIn.value = detail.bonus_in_cents || 0
+    currentBonus.value = detail.bonus_cents || 0
+  } catch {
+    totalIn.value = 0
+    totalOut.value = 0
+    bonusIn.value = 0
+  }
+}
+
+function canVoid(row: LedgerEntryRow) {
+  return (
+    row.reason === 'add_bonus' &&
+    !row.voided &&
+    currentBonus.value >= row.amount_cents
+  )
+}
+
+async function onVoid(row: LedgerEntryRow) {
+  try {
+    await ElMessageBox.confirm(
+      `确认撤销这笔 ¥${formatCents(row.amount_cents)} 的加赠金？` +
+        '只回退赠金，不动现金押金；如需补记请再走「加押金」。',
+      '确认撤销加赠金',
+      { type: 'warning', confirmButtonText: '确认撤销', cancelButtonText: '取消' },
+    )
+  } catch {
+    return
+  }
+  try {
+    const result = await moneyApi.voidBonus(row.id)
+    currentBonus.value = result.player.bonus_cents
+    ElMessage.success('已撤销这笔加赠金')
+    page.value = 1
+    await load()
+    await refreshDetail()
+    emit('changed')
+  } catch {
+    // 失败提示与回滚由全局拦截器负责，这里保持抽屉现状
+  }
+}
+
+async function load() {
+  if (!props.player) return
+  loading.value = true
+  try {
+    const data = await playerApi.ledger(props.player.id, {
+      page: page.value,
+      page_size: pageSize,
+    })
+    rows.value = data.items
+    total.value = data.total
+  } finally {
+    loading.value = false
+  }
+}
+
+function close() {
+  emit('update:modelValue', false)
+}
+</script>
+
+<style scoped>
+.summary {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: var(--app-bg-panel);
+  border: 1px solid var(--app-border);
+  border-radius: 9px;
+  font-size: 12.5px;
+}
+
+.summary div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.summary b {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 10px;
+}
+</style>

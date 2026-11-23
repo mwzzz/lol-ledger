@@ -1,0 +1,93 @@
+"""场次接口。"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy.orm import Session
+
+from app.deps import Actor, client_ip, get_current_user, get_read_db, get_write_db
+from app.schemas import SessionCreateIn, SessionPreviewIn
+from app.services import sessions as session_service
+
+router = APIRouter(prefix="/sessions", tags=["场次"])
+
+
+@router.get("")
+def list_sessions(
+    keyword: str = "",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
+    actor: Actor = Depends(get_current_user),
+    session: Session = Depends(get_read_db),
+) -> dict:
+    return session_service.list_sessions(
+        session,
+        actor.merchant_id,
+        keyword=keyword,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        page_size=page_size,
+        actor_id=actor.id,
+        is_admin=actor.is_admin,
+    )
+
+
+@router.post("/preview")
+def preview(
+    payload: SessionPreviewIn,
+    actor: Actor = Depends(get_current_user),
+    session: Session = Depends(get_read_db),
+) -> dict:
+    return session_service.preview_session(
+        session, actor.merchant_id, payload.player_ids, payload.tea_fee_cents
+    )
+
+
+@router.get("/{session_id}")
+def get_session(
+    session_id: int,
+    actor: Actor = Depends(get_current_user),
+    session: Session = Depends(get_read_db),
+) -> dict:
+    return session_service.get_session_detail(
+        session,
+        session_id,
+        actor.merchant_id,
+        actor_id=actor.id,
+        is_admin=actor.is_admin,
+    )
+
+
+@router.post("/{session_id}/void")
+def void_session(
+    session_id: int,
+    request: Request,
+    actor: Actor = Depends(get_current_user),
+    session: Session = Depends(get_write_db),
+) -> dict:
+    """撤销刚开的一局：删场次与茶水扣费流水、退回押金与局数；非本人且非管理员、已结算、或之后又操作过都会拒绝。"""
+    return session_service.void_session(
+        session, actor, session_id, ip=client_ip(request)
+    )
+
+
+@router.post("", status_code=201)
+def create_session(
+    payload: SessionCreateIn,
+    request: Request,
+    actor: Actor = Depends(get_current_user),
+    session: Session = Depends(get_write_db),
+) -> dict:
+    return session_service.open_session(
+        session,
+        actor,
+        name=payload.name,
+        played_at=payload.played_at,
+        note=payload.note,
+        tea_fee_cents=payload.tea_fee_cents,
+        player_ids=payload.player_ids,
+        ip=client_ip(request),
+    )
