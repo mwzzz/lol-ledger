@@ -1,33 +1,47 @@
 <template>
   <nav v-if="!auth.isSuperadmin" class="bottom-nav">
-    <router-link
+    <button
       v-for="item in items"
       :key="item.name"
-      :to="{ name: item.name }"
+      type="button"
       class="bottom-item"
-      active-class="active"
+      :class="{ active: isActive(item.name) }"
+      @click="router.push({ name: item.name })"
     >
-      <el-icon><component :is="item.icon" /></el-icon>
+      <span class="icon-wrap">
+        <el-icon><component :is="item.icon" /></el-icon>
+        <span v-if="item.name === 'pos' && draft.filledCount > 0" class="nav-badge">
+          {{ draft.filledCount }}
+        </span>
+      </span>
       <span>{{ item.label }}</span>
-    </router-link>
+    </button>
   </nav>
 </template>
 
 <script setup lang="ts">
-import { Calendar, DataBoard, MagicStick, Setting, TrendCharts, User } from '@element-plus/icons-vue'
+import { DataAnalysis, MagicStick, Monitor, TrendCharts } from '@element-plus/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
+import { useSessionDraftStore } from '@/stores/sessionDraft'
 
+const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
+const draft = useSessionDraftStore()
 
 const items = [
-  { name: 'overview', label: '工作台', icon: DataBoard },
-  { name: 'summary', label: '汇总', icon: Calendar },
-  { name: 'players', label: '玩家', icon: User },
-  { name: 'reports', label: '报表', icon: TrendCharts },
-  { name: 'settings', label: '设置', icon: Setting },
+  { name: 'pos', label: '收银台', icon: Monitor },
+  { name: 'dashboard', label: '看板', icon: DataAnalysis },
+  { name: 'reports', label: '账本', icon: TrendCharts },
   { name: 'tools', label: '小工具', icon: MagicStick },
 ]
+
+function isActive(name: string): boolean {
+  if (name === 'tools') return route.path.startsWith('/tools')
+  return route.name === name
+}
 </script>
 
 <style scoped>
@@ -43,10 +57,11 @@ const items = [
     bottom: 0;
     z-index: 30;
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
-    background: color-mix(in srgb, var(--app-bg-panel) 92%, transparent);
-    backdrop-filter: blur(12px);
+    grid-template-columns: repeat(4, 1fr);
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    background: var(--app-bg-panel-glass);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
     border-top: 1px solid var(--app-border);
   }
 
@@ -56,18 +71,43 @@ const items = [
     align-items: center;
     gap: 2px;
     padding: 4px 0;
-    font-size: 10.5px;
+    border: none;
+    background: transparent;
+    font: inherit;
+    font-size: 11px;
     color: var(--app-text-muted);
     border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .icon-wrap {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
   }
 
   .bottom-item .el-icon {
     font-size: 19px;
   }
 
+  .nav-badge {
+    position: absolute;
+    top: -4px;
+    right: -10px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    border-radius: 999px;
+    background: var(--app-primary);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 15px;
+  }
+
   .bottom-item.active {
-    color: var(--el-color-primary);
-    font-weight: 600;
+    color: var(--app-primary);
+    font-weight: 650;
   }
 }
 </style>

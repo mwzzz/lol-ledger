@@ -2,8 +2,9 @@
   <el-dialog
     :model-value="modelValue"
     :title="title"
-    width="440px"
+    width="460px"
     :close-on-click-modal="false"
+    @opened="focusAmount"
     @update:model-value="close"
   >
     <div v-if="player" class="who">
@@ -27,14 +28,44 @@
       本次最多可退现金押金 ¥{{ formatCents(player?.deposit_cents || 0) }}。
     </div>
 
-    <el-form label-width="76px" class="form">
+    <!-- 收银快捷金额键 -->
+    <div v-if="quickPresets.length" class="preset-section">
+      <div class="preset-label">快捷金额</div>
+      <div class="preset-grid">
+        <button
+          v-for="preset in quickPresets"
+          :key="preset.key"
+          type="button"
+          class="preset-chip"
+          :class="{ active: parsed === preset.cents, campaign: Boolean(preset.giftCents) }"
+          @click="pickPreset(preset.cents)"
+        >
+          <span class="pc-main">{{ preset.label }}</span>
+          <span v-if="preset.giftCents" class="pc-gift">送 ¥{{ formatCents(preset.giftCents) }}</span>
+        </button>
+      </div>
+    </div>
+
+    <el-form label-width="64px" class="form" @submit.prevent="submit">
       <el-form-item label="金额">
-        <el-input v-model="amount" placeholder="0.00" autocomplete="off">
+        <el-input
+          ref="amountInputRef"
+          v-model="amount"
+          size="large"
+          placeholder="0.00（按回车直接提交）"
+          autocomplete="off"
+          @keyup.enter="submit"
+        >
           <template #prefix>¥</template>
         </el-input>
       </el-form-item>
       <el-form-item label="备注">
-        <el-input v-model="note" placeholder="可选" maxlength="200" />
+        <el-input
+          v-model="note"
+          placeholder="选填（按回车直接提交）"
+          maxlength="200"
+          @keyup.enter="submit"
+        />
       </el-form-item>
     </el-form>
 
@@ -48,10 +79,9 @@
       <span v-else-if="campaignError" class="warn">
         活动信息读取失败，本笔赠送金额以提交后的结果为准
       </span>
-      <span v-else-if="matchedCampaign">
-        充值活动：满 ¥{{ formatCents(matchedCampaign.threshold_cents) }} 送
-        ¥{{ formatCents(matchedCampaign.bonus_cents) }}，本笔自动赠送
-        ¥{{ formatCents(matchedCampaign.bonus_cents) }}
+      <span v-else-if="matchedCampaign" class="matched-gift">
+        已命中活动：充满 ¥{{ formatCents(matchedCampaign.threshold_cents) }} 自动赠送
+        <b>¥{{ formatCents(matchedCampaign.bonus_cents) }}</b>
       </span>
       <span v-else-if="campaigns.length && parsed !== null" class="muted">
         本笔未达到充值活动门槛
@@ -61,8 +91,10 @@
     <div class="preview">
       <span v-if="error" class="error">{{ error }}</span>
       <span v-else-if="after !== null">
-        {{ previewLabel }}
-        <b :class="after < 0 ? 'negative' : ''">{{ formatBalance(after, afterBonus, afterDeposit) }}</b>
+        变动后余额
+        <b :class="after < 0 ? 'negative' : 'after-val'">
+          ¥{{ formatBalance(after, afterBonus, afterDeposit) }}
+        </b>
         <span v-if="after < 0" class="negative-hint">（会变成负数）</span>
       </span>
       <span v-else class="muted">{{ hint }}</span>
@@ -76,7 +108,7 @@
         :disabled="Boolean(error)"
         @click="submit"
       >
-        确认
+        确认（Enter）
       </el-button>
     </template>
   </el-dialog>
@@ -84,12 +116,12 @@
 
 <script setup lang="ts">
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 import { campaignApi, moneyApi } from '@/api'
 import type { PlayerRow, RechargeCampaign } from '@/api/types'
 import DepositBadge from '@/components/common/DepositBadge.vue'
-import { formatBalance, formatCents, parseYuan } from '@/utils/money'
+import { formatBalance, formatCents, formatYuanShort, parseYuan } from '@/utils/money'
 
 const props = defineProps<{
   modelValue: boolean
@@ -102,6 +134,7 @@ const emit = defineEmits<{
   (event: 'saved', value: PlayerRow): void
 }>()
 
+const amountInputRef = ref<{ focus?: () => void; select?: () => void } | null>(null)
 const amount = ref('')
 const note = ref('')
 const saving = ref(false)
@@ -110,8 +143,8 @@ const campaignLoading = ref(false)
 const campaignError = ref(false)
 
 const title = computed(() => {
-  if (props.mode === 'add') return '加押金'
-  if (props.mode === 'refund') return '退押金'
+  if (props.mode === 'add') return '收银 · 加押金'
+  if (props.mode === 'refund') return '收银 · 退押金'
   return '加赠金'
 })
 
@@ -122,6 +155,66 @@ const hint = computed(() => {
 })
 
 const parsed = computed(() => parseYuan(amount.value))
+
+interface QuickPreset {
+  key: string
+  cents: number
+  label: string
+  giftCents?: number
+}
+
+const quickPresets = computed<QuickPreset[]>(() => {
+  if (props.mode === 'add') {
+    const map = new Map<number, number>()
+    for (const c of campaigns.value) {
+      map.set(c.threshold_cents, c.bonus_cents)
+    }
+    const baseCents = [3000, 5000, 10000, 20000, 50000]
+    const merged = new Set<number>([...baseCents, ...campaigns.value.map((c) => c.threshold_cents)])
+    return [...merged]
+      .filter((c) => c > 0)
+      .sort((a, b) => a - b)
+      .slice(0, 8)
+      .map((cents) => {
+        // 计算该金额命中的最高档赠金
+        const matched = campaigns.value
+          .filter((item) => item.threshold_cents <= cents)
+          .sort((a, b) => b.threshold_cents - a.threshold_cents)[0]
+        return {
+          key: `add-${cents}`,
+          cents,
+          label: `¥${formatYuanShort(cents)}`,
+          giftCents: matched ? matched.bonus_cents : map.get(cents),
+        }
+      })
+  }
+  if (props.mode === 'refund' && props.player && props.player.deposit_cents > 0) {
+    const max = props.player.deposit_cents
+    const list: QuickPreset[] = [{ key: 'all', cents: max, label: `全退 ¥${formatCents(max)}` }]
+    for (const c of [2000, 5000, 10000]) {
+      if (c < max) list.push({ key: `ref-${c}`, cents: c, label: `¥${formatYuanShort(c)}` })
+    }
+    return list
+  }
+  if (props.mode === 'bonus') {
+    return [1000, 2000, 5000, 10000].map((cents) => ({
+      key: `bon-${cents}`,
+      cents,
+      label: `¥${formatYuanShort(cents)}`,
+    }))
+  }
+  return []
+})
+
+function pickPreset(cents: number) {
+  amount.value = formatYuanShort(cents)
+  void nextTick(() => amountInputRef.value?.focus?.())
+}
+
+function focusAmount() {
+  amountInputRef.value?.focus?.()
+  amountInputRef.value?.select?.()
+}
 
 const matchedCampaign = computed(() => {
   if (props.mode !== 'add' || parsed.value === null) return null
@@ -162,14 +255,10 @@ const afterBonus = computed(() => {
   return props.player.bonus_cents + parsed.value
 })
 
-const previewLabel = computed(() =>
-  props.mode === 'bonus' ? '变动后余额' : '变动后余额',
-)
-
 const error = computed(() => {
   if (!amount.value.trim()) return ''
   if (parsed.value === null) return '金额格式不正确，最多两位小数'
-  if (parsed.value <= 0) return `${title.value}金额必须大于 0`
+  if (parsed.value <= 0) return '金额必须大于 0'
   if (
     props.mode === 'refund' &&
     props.player &&
@@ -215,6 +304,7 @@ function close() {
 }
 
 async function submit() {
+  if (saving.value) return
   const cents = parsed.value
   if (cents === null) {
     ElMessage.warning('请输入正确的金额')
@@ -275,16 +365,16 @@ async function submit() {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px 12px;
-  margin-bottom: 16px;
+  padding: 11px 14px;
+  margin-bottom: 14px;
   background: var(--app-bg-subtle);
   border: 1px solid var(--app-border-strong);
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .who-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
@@ -292,60 +382,114 @@ async function submit() {
 .who-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
-  font-size: 11.5px;
+  gap: 4px 14px;
+  font-size: 12px;
   color: var(--app-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .name {
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: 650;
+  font-size: 15px;
 }
 
-.blocked-tip {
+.preset-section {
+  margin-bottom: 14px;
+}
+
+.preset-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--app-text-muted);
+  margin-bottom: 6px;
+}
+
+.preset-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.preset-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 8px;
+  border: 1px solid var(--app-border-strong);
+  background: var(--app-bg-subtle);
+  color: var(--app-text-main);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.preset-chip:hover {
+  border-color: var(--app-primary);
+}
+
+.preset-chip.active {
+  background: var(--app-primary-soft);
+  border-color: var(--app-primary);
+  color: var(--app-primary);
+}
+
+.pc-gift {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--app-success-soft);
+  color: var(--el-color-success);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.blocked-tip,
+.bonus-tip {
   margin-bottom: 14px;
   padding: 9px 11px;
-  border: 1px solid rgba(230, 162, 60, 0.32);
+  border: 1px solid rgba(245, 181, 68, 0.35);
   background: var(--app-warning-soft);
-  border-radius: 7px;
+  border-radius: 8px;
   font-size: 12px;
   color: var(--el-color-warning);
   line-height: 1.6;
 }
 
 .form :deep(.el-form-item) {
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .campaign-line {
   min-height: 18px;
-  padding-left: 76px;
+  padding-left: 64px;
   margin-bottom: 6px;
   font-size: 12px;
-  color: var(--el-color-primary);
+  color: var(--app-primary);
   line-height: 1.5;
 }
 
-.bonus-tip {
-  margin-bottom: 14px;
-  padding: 9px 11px;
-  border: 1px solid rgba(230, 162, 60, 0.32);
-  background: var(--app-warning-soft);
-  border-radius: 7px;
-  font-size: 12px;
-  color: var(--el-color-warning);
-  line-height: 1.6;
+.matched-gift {
+  color: var(--el-color-success);
 }
 
 .preview {
-  min-height: 20px;
-  padding-left: 76px;
+  min-height: 22px;
+  padding-left: 64px;
   font-size: 12.5px;
   color: var(--el-text-color-regular);
+  font-variant-numeric: tabular-nums;
 }
 
-.error,
-.warn {
+.after-val {
+  color: var(--app-text-main);
+  font-size: 14px;
+}
+
+.error {
   color: var(--el-color-danger);
 }
 

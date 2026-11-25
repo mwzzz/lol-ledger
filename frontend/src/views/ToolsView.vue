@@ -1,10 +1,8 @@
 <template>
   <div class="page">
     <div class="page-head">
-      <div>
-        <h1>小工具</h1>
-        <p class="muted small">日常用得到的小功能，会陆续增加。</p>
-      </div>
+      <span class="page-title">小工具</span>
+      <span class="page-sub">日常用得到的小功能，会陆续增加。</span>
     </div>
 
     <div class="tool-grid">

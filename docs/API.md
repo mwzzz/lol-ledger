@@ -107,7 +107,7 @@ Authorization: Bearer <access_token>
 
 `sort` 可选：`games_played_desc`（默认）、`deposit_desc`、`deposit_asc`、`last_active_desc`、`game_id_asc`。
 
-批量导入说明：取第一个工作表，第一行可以是表头；押金按元转成分，最多两位小数；整批校验通过才写入，任何一行重复/非法都会返回 400 和 `errors: [{row, message}]`，不会导入一半。单文件上限 5MB、1000 行。
+批量导入说明：取第一个工作表，第一行可以是表头；押金按元转成分，支持负数（写 `refund` 流水记期初欠费），最多两位小数；整批校验通过才写入，任何一行重复/非法都会返回 400 和 `errors: [{row, message}]`，不会导入一半。单文件上限 5MB、1000 行。
 
 ## 押金
 

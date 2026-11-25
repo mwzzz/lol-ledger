@@ -2,17 +2,30 @@
   <div class="page">
     <div class="page-head">
       <span class="page-title">平台管理</span>
-      <span class="page-sub">商家账号 · 查战绩配额</span>
+      <span class="page-sub">商家与门店账号 · 查战绩配额分配</span>
+      <div class="spacer"></div>
+      <div class="pos-seg" role="tablist">
+        <button
+          type="button"
+          class="pos-seg-btn"
+          :class="{ active: tab === 'merchants' }"
+          @click="tab = 'merchants'"
+        >
+          商家与账号
+        </button>
+        <button
+          type="button"
+          class="pos-seg-btn"
+          :class="{ active: tab === 'zj' }"
+          @click="tab = 'zj'"
+        >
+          查战绩配额
+        </button>
+      </div>
     </div>
 
-    <el-tabs v-model="tab" class="platform-tabs">
-      <el-tab-pane label="商家与账号" name="merchants" lazy>
-        <MerchantPanel />
-      </el-tab-pane>
-      <el-tab-pane label="查战绩配额" name="zj" lazy>
-        <ZhanjiQuotaPanel />
-      </el-tab-pane>
-    </el-tabs>
+    <MerchantPanel v-if="tab === 'merchants'" />
+    <ZhanjiQuotaPanel v-else />
   </div>
 </template>
 
@@ -24,13 +37,3 @@ import ZhanjiQuotaPanel from '@/views/platform/ZhanjiQuotaPanel.vue'
 
 const tab = ref<'merchants' | 'zj'>('merchants')
 </script>
-
-<style scoped>
-.platform-tabs :deep(.el-tabs__header) {
-  margin-bottom: 14px;
-}
-
-.platform-tabs :deep(.el-tabs__item) {
-  font-size: 13.5px;
-}
-</style>

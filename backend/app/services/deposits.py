@@ -381,11 +381,13 @@ def refund(
     player_id: int,
     amount_cents: int,
     note: str = "",
+    *,
+    allow_negative: bool = False,
 ) -> dict:
     require_positive(amount_cents, "退押金金额必须大于 0")
     merchant_id = actor.merchant_id
     player = get_player(session, player_id, merchant_id)
-    if int(amount_cents) > int(player.deposit_cents):
+    if not allow_negative and int(amount_cents) > int(player.deposit_cents):
         raise AppError("现金押金不足，不能退这么多")
     clean = clean_text(note, "备注", 200)
     cash_before, cash_after, bonus_before, bonus_after = apply_cash_delta(

@@ -1,13 +1,13 @@
 <template>
   <div class="page queue-view">
     <div class="page-head">
-      <div>
-        <h1>排队登记</h1>
-        <p class="muted small">
-          {{ data.shop_name || '本店' }} · {{ data.date }} ·
-          排队中 {{ counts.waiting }} 人，进行中 {{ counts.playing }} 人
-        </p>
-      </div>
+      <el-button link :icon="ArrowLeft" @click="$router.push({ name: 'tools' })">小工具</el-button>
+      <span class="page-title">排队登记</span>
+      <span class="page-sub">
+        {{ data.shop_name || '本店' }} · {{ data.date }} ·
+        排队中 {{ counts.waiting }} 人，进行中 {{ counts.playing }} 人
+      </span>
+      <div class="spacer"></div>
       <div class="head-actions">
         <el-date-picker
           v-model="day"
@@ -193,7 +193,7 @@
 </template>
 
 <script setup lang="ts">
-import { Download, Picture, Plus } from '@element-plus/icons-vue'
+import { ArrowLeft, Download, Picture, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 

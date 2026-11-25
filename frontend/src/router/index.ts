@@ -35,16 +35,45 @@ const router = createRouter({
       path: '/',
       component: () => import('@/layouts/AppLayout.vue'),
       children: [
-        { path: '', name: 'overview', component: () => import('@/views/OverviewView.vue') },
-        { path: 'summary', name: 'summary', component: () => import('@/views/SummaryView.vue') },
-        { path: 'batches', redirect: { name: 'summary' } },
-        { path: 'players', name: 'players', component: () => import('@/views/PlayersView.vue') },
+        {
+          path: '',
+          name: 'pos',
+          component: () => import('@/views/PosWorkbenchView.vue'),
+        },
+        {
+          path: 'players',
+          name: 'players',
+          redirect: (to) => ({ name: 'pos', query: to.query }),
+        },
+        {
+          path: 'dashboard',
+          name: 'dashboard',
+          component: () => import('@/views/DashboardView.vue'),
+        },
+        {
+          path: 'overview',
+          name: 'overview',
+          redirect: (to) => ({ name: 'dashboard', query: to.query }),
+        },
+        {
+          path: 'summary',
+          name: 'summary',
+          redirect: (to) => ({ name: 'dashboard', query: to.query }),
+        },
+        {
+          path: 'batches',
+          redirect: (to) => ({ name: 'dashboard', query: to.query }),
+        },
         {
           path: 'reports',
           name: 'reports',
           component: () => import('@/views/ReportsView.vue'),
         },
-        { path: 'records', name: 'records', redirect: { name: 'reports', query: { tab: 'records' } } },
+        {
+          path: 'records',
+          name: 'records',
+          redirect: (to) => ({ name: 'reports', query: { ...to.query, tab: 'records' } }),
+        },
         {
           path: 'settings',
           name: 'settings',
@@ -102,7 +131,7 @@ router.beforeEach(async (to) => {
 
   if (to.meta.public) {
     if (auth.isLoggedIn && to.name === 'login') {
-      return { name: auth.isSuperadmin ? 'platform' : 'overview' }
+      return { name: auth.isSuperadmin ? 'platform' : 'pos' }
     }
     return true
   }
@@ -127,12 +156,12 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresSuperadmin && !auth.isSuperadmin) {
     ElMessage.warning('只有开发者账号可以打开这个页面')
-    return { name: 'overview' }
+    return { name: 'pos' }
   }
 
   if (to.meta.requiresAdmin && !auth.isAdmin) {
     ElMessage.warning('只有管理员可以打开这个页面')
-    return { name: 'overview' }
+    return { name: 'pos' }
   }
 
   return true

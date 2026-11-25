@@ -6,11 +6,30 @@
     </div>
 
     <div class="toolbar">
+      <div class="mode-seg" role="group" aria-label="记录类型">
+        <button
+          type="button"
+          class="seg-btn"
+          :class="{ active: tab === 'deposits' }"
+          @click="switchTab('deposits')"
+        >
+          押金记录
+        </button>
+        <button
+          type="button"
+          class="seg-btn"
+          :class="{ active: tab === 'sessions' }"
+          @click="switchTab('sessions')"
+        >
+          场次记录
+        </button>
+      </div>
+
       <el-input
         v-model="keyword"
         placeholder="搜索玩家名或场次名"
         clearable
-        style="width: 260px"
+        style="width: 220px"
         @keyup.enter="reload"
         @clear="reload"
       >
@@ -71,8 +90,7 @@
       </span>
     </div>
 
-    <el-tabs v-model="tab" @tab-change="onTabChange">
-      <el-tab-pane label="押金记录" name="deposits">
+    <template v-if="tab === 'deposits'">
         <div class="panel desktop-only">
           <el-table v-loading="loading" :data="entries">
             <el-table-column label="时间" width="168">
@@ -148,9 +166,9 @@
             <div v-if="!loading && !entries.length" class="empty-hint">没有记录</div>
           </div>
         </div>
-      </el-tab-pane>
+    </template>
 
-      <el-tab-pane label="场次记录" name="sessions">
+    <template v-else>
         <div class="panel desktop-only">
           <el-table v-loading="loading" :data="sessions">
             <el-table-column label="时间" width="140">
@@ -226,8 +244,7 @@
             <div v-if="!loading && !sessions.length" class="empty-hint">没有记录</div>
           </div>
         </div>
-      </el-tab-pane>
-    </el-tabs>
+    </template>
 
     <div class="pager">
       <el-pagination
@@ -350,7 +367,9 @@ async function voidSession(row: SessionRow) {
   app.notifySessionCreated()
 }
 
-function onTabChange() {
+function switchTab(next: 'deposits' | 'sessions') {
+  if (tab.value === next) return
+  tab.value = next
   reload()
 }
 
@@ -476,5 +495,40 @@ onMounted(() => {
 .page.embedded {
   max-width: none;
   padding: 0;
+}
+
+.mode-seg {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--app-bg-subtle);
+  border: 1px solid var(--app-border);
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.seg-btn {
+  height: 26px;
+  padding: 0 11px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--app-text-muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.seg-btn:hover {
+  color: var(--el-text-color-primary);
+}
+
+.seg-btn.active {
+  background: var(--app-bg-panel);
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 </style>

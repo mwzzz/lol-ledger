@@ -55,8 +55,25 @@
 
       <div v-if="result" class="result">
         <div class="result-head">
-          <span>识别到 {{ result.count }} 人</span>
-          <span class="tiny">耗时 {{ (result.elapsed_ms / 1000).toFixed(1) }}s</span>
+          <span>
+            识别到 {{ result.count }} 人
+            <template v-if="unmatchedRows.length">
+              · <b class="unmatched-count">{{ unmatchedRows.length }} 人不在库</b>
+            </template>
+          </span>
+          <div class="rh-right">
+            <el-button
+              v-if="unmatchedRows.length > 1"
+              size="small"
+              type="primary"
+              plain
+              :loading="batchCreating"
+              @click="createAllUnmatched"
+            >
+              + 一键新建全部未匹配（{{ unmatchedRows.length }}人）
+            </el-button>
+            <span class="tiny">耗时 {{ (result.elapsed_ms / 1000).toFixed(1) }}s</span>
+          </div>
         </div>
         <div v-for="item in rows" :key="item.raw_name" class="row" :class="item.status">
           <el-checkbox
@@ -87,31 +104,43 @@
             <em v-else-if="isTeaFree(item.matched_player.game_id)" class="tag">免茶水</em>
             <em v-if="isLowDeposit(item.matched_player)" class="tag warn">押金不足</em>
           </div>
-          <el-select
-            v-else-if="item.status === 'ambiguous'"
-            v-model="item.chooser"
-            size="small"
-            placeholder="选择匹配玩家"
-            class="candidate"
-            @change="onCandidateChange(item)"
-          >
-            <el-option
-              v-for="candidate in item.candidates"
-              :key="candidate.player.id"
-              :label="candidateLabel(candidate)"
-              :value="candidate.player.id"
-              :disabled="isBlocked(candidate.player)"
-            />
-          </el-select>
-          <div v-else class="unmatched">
-            未匹配
+          <div v-else-if="item.status === 'ambiguous'" class="ambiguous-wrap">
+            <el-select
+              v-model="item.chooser"
+              size="small"
+              placeholder="选择相似玩家"
+              class="candidate"
+              clearable
+              @change="onCandidateChange(item)"
+            >
+              <el-option
+                v-for="candidate in item.candidates"
+                :key="candidate.player.id"
+                :label="candidateLabel(candidate)"
+                :value="candidate.player.id"
+                :disabled="isBlocked(candidate.player)"
+              />
+            </el-select>
             <el-button
-              link
+              size="small"
               type="primary"
+              plain
               :loading="creatingName === item.raw_name"
               @click="createPlayer(item)"
             >
-              新建并选用
+              + 新建
+            </el-button>
+          </div>
+          <div v-else class="unmatched">
+            <span class="unmatched-label">未建档</span>
+            <el-button
+              size="small"
+              type="primary"
+              plain
+              :loading="creatingName === item.raw_name"
+              @click="createPlayer(item)"
+            >
+              + 新建并选用
             </el-button>
           </div>
         </div>
@@ -123,8 +152,8 @@
         <div class="actions">
           <el-button link @click="reset">重新识别</el-button>
           <div class="spacer"></div>
-          <el-button type="primary" :disabled="!selectedIds.length" @click="apply">
-            填入 {{ selectedIds.length }} 人
+          <el-button type="primary" :disabled="!selectedIds.length" @click="apply(false)">
+            填入 {{ selectedIds.length }} 人并完成
           </el-button>
         </div>
       </div>
@@ -139,8 +168,11 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { aiApi, playerApi } from '@/api'
 import type { AiCandidate, AiPlayerItem, AiPlayerRef, AiRecognizePayload } from '@/api/types'
+import { useAppStore } from '@/stores/app'
 import { formatBalance } from '@/utils/money'
 import { nameKey } from '@/utils/names'
+
+const app = useAppStore()
 
 const props = withDefaults(
   defineProps<{
@@ -152,7 +184,7 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  (event: 'apply', ids: number[]): void
+  (event: 'apply', ids: number[], meta: { auto: boolean; hasPending: boolean }): void
 }>()
 
 interface RowState extends AiPlayerItem {
@@ -170,7 +202,15 @@ const errorText = ref('')
 const result = ref<AiRecognizePayload | null>(null)
 const rows = ref<RowState[]>([])
 const creatingName = ref<string | null>(null)
+const batchCreating = ref(false)
 let currentFile: File | null = null
+
+const unmatchedRows = computed(() => rows.value.filter((item) => item.status === 'unmatched'))
+const hasPendingRows = computed(() =>
+  rows.value.some(
+    (item) => item.status === 'unmatched' || (item.status === 'ambiguous' && !item.chooser),
+  ),
+)
 let controller: AbortController | null = null
 
 const MAX_BYTES = 5 * 1024 * 1024
@@ -228,13 +268,17 @@ const selectedIds = computed(() => {
   return [...new Set(ids)].slice(0, 10)
 })
 
-onMounted(async () => {
-  window.addEventListener('paste', onPaste)
+async function checkStatus() {
   try {
     enabled.value = (await aiApi.status()).enabled
   } catch {
     enabled.value = false
   }
+}
+
+onMounted(async () => {
+  window.addEventListener('paste', onPaste)
+  await checkStatus()
 })
 
 onUnmounted(() => {
@@ -250,6 +294,8 @@ watch(
       controller?.abort()
       recognizing.value = false
       reset()
+    } else if (!enabled.value) {
+      void checkStatus()
     }
   },
 )
@@ -363,7 +409,7 @@ async function recognize(file: File) {
       selected: item.status === 'matched' && !isBlocked(item.matched_player),
       chooser: null,
     }))
-    if (selectedIds.value.length) apply()
+    if (selectedIds.value.length) apply(true)
   } catch (error: any) {
     if (error?.code === 'ERR_CANCELED') return
     errorText.value = error?.response?.data?.detail || '识别失败，请手动选人'
@@ -423,17 +469,66 @@ async function createPlayer(item: RowState) {
       is_blacklisted: created.is_blacklisted,
     }
     item.status = 'matched'
+    item.chooser = null
     item.selected = !isBlocked(item.matched_player)
+    app.notifyPlayerCreated()
+    if (selectedIds.value.length) apply(true)
     ElMessage.success(`已新建玩家 ${created.game_id}`)
   } finally {
     creatingName.value = null
   }
 }
 
-function apply() {
-  if (!selectedIds.value.length) return
-  emit('apply', selectedIds.value)
+async function createAllUnmatched() {
+  const targets = unmatchedRows.value.slice()
+  if (!targets.length || batchCreating.value) return
+  try {
+    await ElMessageBox.confirm(
+      `将直接按识别出的名字批量新建 ${targets.length} 名玩家并填入组局：${targets.map((t) => t.raw_name).join('、')}`,
+      '批量新建未匹配玩家',
+      { confirmButtonText: '确认新建并填入', cancelButtonText: '取消', type: 'info' },
+    )
+  } catch {
+    return
+  }
+  batchCreating.value = true
+  let okCount = 0
+  try {
+    for (const item of targets) {
+      try {
+        const created = await playerApi.create({ game_id: item.raw_name.trim() })
+        item.matched_player = {
+          id: created.id,
+          game_id: created.game_id,
+          account: created.account || '',
+          deposit_cents: created.deposit_cents,
+          bonus_cents: created.bonus_cents,
+          balance_cents: created.balance_cents,
+          is_blacklisted: created.is_blacklisted,
+        }
+        item.status = 'matched'
+        item.selected = !isBlocked(item.matched_player)
+        okCount += 1
+      } catch {
+        // 单个同名冲突等跳过，保留手动处理
+      }
+    }
+    if (okCount > 0) {
+      app.notifyPlayerCreated()
+      if (selectedIds.value.length) apply(true)
+      ElMessage.success(`已新建并填入 ${okCount} 名玩家`)
+    }
+  } finally {
+    batchCreating.value = false
+  }
 }
+
+function apply(auto = false) {
+  if (!selectedIds.value.length) return
+  emit('apply', selectedIds.value, { auto, hasPending: hasPendingRows.value })
+}
+
+defineExpose({ recognizeFile: recognize })
 </script>
 
 <style scoped>
@@ -553,10 +648,21 @@ function apply() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 8px 12px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
   border-bottom: 1px solid var(--app-border);
+}
+
+.rh-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.unmatched-count {
+  color: var(--el-color-danger);
 }
 
 .row {
@@ -649,15 +755,28 @@ function apply() {
   border-color: var(--el-color-warning);
 }
 
+.ambiguous-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .candidate {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
 }
 
 .unmatched {
   color: var(--el-color-danger);
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.unmatched-label {
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .warn {

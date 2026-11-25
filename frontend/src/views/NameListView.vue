@@ -1,10 +1,10 @@
 <template>
   <div class="page name-list-view">
     <div class="page-head">
-      <div>
-        <h1>常用名单</h1>
-        <p class="muted small">打手、免茶水、免押金这类店铺规矩，随时可查可改。</p>
-      </div>
+      <el-button link :icon="ArrowLeft" @click="$router.push({ name: 'tools' })">小工具</el-button>
+      <span class="page-title">常用名单</span>
+      <span class="page-sub">打手、免茶水、免押金这类店铺规矩，随时可查可改。</span>
+      <div class="spacer"></div>
       <div class="head-actions">
         <el-button :icon="Refresh" @click="load">刷新</el-button>
         <el-button type="primary" :icon="Plus" @click="openCreateList">新建分类</el-button>
@@ -97,7 +97,7 @@
 </template>
 
 <script setup lang="ts">
-import { Bottom, Close, Delete, EditPen, Plus, Refresh, Top } from '@element-plus/icons-vue'
+import { ArrowLeft, Bottom, Close, Delete, EditPen, Plus, Refresh, Top } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, reactive, ref } from 'vue'
 

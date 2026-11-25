@@ -121,8 +121,6 @@ def _parse_cents(value: object) -> int:
         raise ValueError("押金不是有效数字") from exc
     if not amount.is_finite():
         raise ValueError("押金不是有效数字")
-    if amount < 0:
-        raise ValueError("押金不能为负数")
     if amount != amount.quantize(Decimal("0.01")):
         raise ValueError("押金最多两位小数")
     return int(amount * 100)
@@ -217,6 +215,16 @@ def import_players(
                 item["deposit_cents"],
                 note="Excel 批量导入",
                 apply_campaign=False,
+            )
+            deposited_cents += item["deposit_cents"]
+        elif item["deposit_cents"] < 0:
+            deposits.refund(
+                session,
+                actor,
+                player_id,
+                -item["deposit_cents"],
+                note="Excel 批量导入",
+                allow_negative=True,
             )
             deposited_cents += item["deposit_cents"]
 

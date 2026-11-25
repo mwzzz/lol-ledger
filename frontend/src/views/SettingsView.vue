@@ -1,13 +1,46 @@
 <template>
   <div class="page">
     <div class="page-head">
-      <span class="page-title">设置</span>
-      <span class="page-sub">茶水默认值、押金提醒线、账号</span>
+      <span class="page-title">店铺设置</span>
+      <span class="page-sub">茶水默认值、押金提醒线、充值活动与账号</span>
+      <div class="spacer"></div>
+      <div v-if="auth.isAdmin" class="pos-seg" role="tablist">
+        <button
+          type="button"
+          class="pos-seg-btn"
+          :class="{ active: tab === 'basic' }"
+          @click="tab = 'basic'"
+        >
+          基础设置
+        </button>
+        <button
+          type="button"
+          class="pos-seg-btn"
+          :class="{ active: tab === 'recharge' }"
+          @click="tab = 'recharge'"
+        >
+          充值活动
+        </button>
+        <button
+          type="button"
+          class="pos-seg-btn"
+          :class="{ active: tab === 'accounts' }"
+          @click="tab = 'accounts'"
+        >
+          账号管理
+        </button>
+        <button
+          type="button"
+          class="pos-seg-btn"
+          :class="{ active: tab === 'check' }"
+          @click="tab = 'check'"
+        >
+          数据自检
+        </button>
+      </div>
     </div>
 
-    <el-tabs v-model="tab">
-      <el-tab-pane label="基础设置" name="basic">
-        <div class="panel form-panel">
+    <div v-if="tab === 'basic'" class="panel form-panel">
           <el-form label-width="120px" style="max-width: 560px">
             <el-form-item label="店名">
               <el-input v-model="form.shop_name" maxlength="64" :disabled="!auth.isAdmin" />
@@ -67,10 +100,8 @@
             分红方式：按茶水比例时，操作人分红 = 本人茶水 × 比例；每局固定时，操作人分红 = 本人局数 × 每局金额，与茶水多少无关。改动只影响之后开局的场次，已开局场次的金额不变。
           </div>
         </div>
-      </el-tab-pane>
 
-      <el-tab-pane v-if="auth.isAdmin" label="充值活动" name="recharge">
-        <div class="panel campaign-panel">
+    <div v-else-if="auth.isAdmin && tab === 'recharge'" class="panel campaign-panel">
           <div class="check-head">
             <div>
               <div class="check-title">充值活动</div>
@@ -109,9 +140,8 @@
             还没有充值活动
           </div>
         </div>
-      </el-tab-pane>
 
-      <el-tab-pane v-if="auth.isAdmin" label="账号管理" name="accounts">
+    <template v-else-if="auth.isAdmin && tab === 'accounts'">
         <div class="toolbar">
           <el-button type="primary" :icon="Plus" @click="openCreateAccount">新增账号</el-button>
           <el-button :icon="Refresh" @click="loadAccounts">刷新</el-button>
@@ -217,10 +247,9 @@
             <div v-if="!accountLoading && !accounts.length" class="empty-hint">还没有账号</div>
           </div>
         </div>
-      </el-tab-pane>
+    </template>
 
-      <el-tab-pane v-if="auth.isAdmin" label="数据自检" name="check">
-        <div class="panel check-panel">
+    <div v-else-if="auth.isAdmin && tab === 'check'" class="panel check-panel">
           <div class="check-head">
             <div>
               <div class="check-title">数据自检</div>
@@ -269,8 +298,6 @@
             </el-table>
           </div>
         </div>
-      </el-tab-pane>
-    </el-tabs>
 
     <el-dialog v-model="accountVisible" title="新增账号" width="420px" :close-on-click-modal="false">
       <div class="reset-who">新账号会归属到 <b>{{ auth.merchantName }}</b></div>

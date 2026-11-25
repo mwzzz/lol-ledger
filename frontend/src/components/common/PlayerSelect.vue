@@ -1,5 +1,6 @@
 <template>
   <el-select
+    ref="selectRef"
     :model-value="modelValue ?? undefined"
     filterable
     remote
@@ -56,6 +57,7 @@ const emit = defineEmits<{
   (event: 'change', value: PlayerOption | null): void
 }>()
 
+const selectRef = ref<{ focus?: () => void } | null>(null)
 const options = ref<PlayerOption[]>([])
 const loading = ref(false)
 let timer: number | undefined
@@ -126,7 +128,7 @@ function onChange(value: number | null) {
 
 watch(() => props.modelValue, ensureSelected, { immediate: true })
 
-defineExpose({ reload: load })
+defineExpose({ reload: load, focus: () => selectRef.value?.focus?.() })
 </script>
 
 <style scoped>

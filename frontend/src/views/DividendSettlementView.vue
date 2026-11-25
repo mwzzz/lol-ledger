@@ -79,12 +79,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="场次" width="100" align="right">
-          <template #default="{ row }">
-            <span class="mono">{{ row.pending.session_count }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="局数" width="80" align="right">
+        <el-table-column label="局数" width="84" align="right">
           <template #default="{ row }"><span class="mono">{{ row.pending.session_count }}</span></template>
         </el-table-column>
         <el-table-column label="人次" width="80" align="right">

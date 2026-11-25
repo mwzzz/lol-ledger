@@ -1,64 +1,64 @@
-/* 暗色主题：对齐参考截图的大表格风格。必须在 Element Plus 的 css-vars 之后引入。 */
+/* 暗色专业终端主题覆盖（在 Element Plus css-vars 之后引入） */
 html.dark {
-  --el-bg-color: #14161c;
-  --el-bg-color-page: #0b0d12;
-  --el-bg-color-overlay: #1b1e27;
-  --el-fill-color-blank: #14161c;
-  --el-fill-color: #1a1d26;
-  --el-fill-color-light: #1a1d26;
-  --el-fill-color-lighter: #191c24;
-  --el-fill-color-dark: #232733;
-  --el-border-color: #262b36;
-  --el-border-color-light: #20242d;
-  --el-border-color-lighter: #1c2028;
-  --el-border-color-extra-light: #191d24;
-  --el-text-color-primary: #e7e9ef;
-  --el-text-color-regular: #b9bfcc;
-  --el-text-color-secondary: #7f8798;
-  --el-text-color-placeholder: #5f6675;
-  --el-text-color-disabled: #4c525f;
-  --el-color-primary: #4c8dff;
-  --el-color-primary-light-3: #3d6fc4;
-  --el-color-primary-light-5: #2f548f;
-  --el-color-primary-light-7: #223a5e;
-  --el-color-primary-light-8: #1b2c46;
-  --el-color-primary-light-9: #162234;
+  --el-bg-color: #10131b;
+  --el-bg-color-page: #080a0f;
+  --el-bg-color-overlay: #161a24;
+  --el-fill-color-blank: #10131b;
+  --el-fill-color: #151923;
+  --el-fill-color-light: #151923;
+  --el-fill-color-lighter: #131720;
+  --el-fill-color-dark: #1d2331;
+  --el-border-color: #232938;
+  --el-border-color-light: #1c212e;
+  --el-border-color-lighter: #181c27;
+  --el-border-color-extra-light: #141821;
+  --el-text-color-primary: #edf1f8;
+  --el-text-color-regular: #bcc5d6;
+  --el-text-color-secondary: #848ea2;
+  --el-text-color-placeholder: #566074;
+  --el-text-color-disabled: #454d5e;
+  --el-color-primary: #4f8cff;
+  --el-color-primary-light-3: #3e70cc;
+  --el-color-primary-light-5: #2f5499;
+  --el-color-primary-light-7: #203866;
+  --el-color-primary-light-8: #182a4d;
+  --el-color-primary-light-9: #121f38;
   --el-color-primary-dark-2: #6ba0ff;
-  --el-color-success: #3ecf8e;
-  --el-color-warning: #f0b429;
-  --el-color-danger: #ff5c5c;
-  --el-color-error: #ff5c5c;
-  --el-color-info: #7f8798;
+  --el-color-success: #34d399;
+  --el-color-warning: #f5b544;
+  --el-color-danger: #f87171;
+  --el-color-error: #f87171;
+  --el-color-info: #848ea2;
 
   --el-table-bg-color: transparent;
   --el-table-tr-bg-color: transparent;
   --el-table-expanded-cell-bg-color: transparent;
-  --el-table-header-bg-color: #171a22;
-  --el-table-header-text-color: #8d95a6;
-  --el-table-border-color: #20242d;
-  --el-table-row-hover-bg-color: #1a1f2a;
-  --el-table-text-color: #d8dce6;
-  --el-table-current-row-bg-color: #1b2230;
+  --el-table-header-bg-color: #121620;
+  --el-table-header-text-color: #848ea2;
+  --el-table-border-color: #1c212e;
+  --el-table-row-hover-bg-color: #161b26;
+  --el-table-text-color: #dee3ed;
+  --el-table-current-row-bg-color: #192131;
 
-  --el-dialog-bg-color: #1b1e27;
-  --el-popover-bg-color: #1b1e27;
-  --el-mask-color: rgba(4, 6, 10, 0.72);
-  --el-box-shadow-light: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --el-dialog-bg-color: #141822;
+  --el-popover-bg-color: #161a24;
+  --el-mask-color: rgba(4, 6, 10, 0.76);
+  --el-box-shadow-light: 0 20px 50px rgba(0, 0, 0, 0.55);
 }
 
 html.dark .el-table {
   font-size: 13px;
-  --el-table-cell-padding: 11px 12px;
+  --el-table-cell-padding: 10px 12px;
 }
 
 html.dark .el-table th.el-table__cell {
   font-weight: 500;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.02em;
   border-bottom: 1px solid var(--el-table-border-color) !important;
 }
 
 html.dark .el-table td.el-table__cell {
-  border-bottom: 1px solid #1a1e26;
+  border-bottom: 1px solid #181d28;
 }
 
 html.dark .el-table__inner-wrapper::before {
@@ -70,41 +70,42 @@ html.dark .el-table tr {
 }
 
 html.dark .el-dialog {
-  border: 1px solid #262b36;
-  border-radius: 12px;
+  border: 1px solid #242a3a;
+  border-radius: 14px;
+  box-shadow: var(--app-shadow), var(--app-panel-highlight);
 }
 
 html.dark .el-dialog__title {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 650;
 }
 
 html.dark .el-input__wrapper,
 html.dark .el-select__wrapper,
 html.dark .el-textarea__inner {
-  background-color: #101319;
-  box-shadow: 0 0 0 1px #262b36 inset;
+  background-color: #0c0f16;
+  box-shadow: 0 0 0 1px #232938 inset;
 }
 
 html.dark .el-input__wrapper.is-focus,
 html.dark .el-select__wrapper.is-focused,
 html.dark .el-textarea__inner:focus {
-  box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+  box-shadow: 0 0 0 1px var(--el-color-primary) inset, 0 0 0 3px var(--app-primary-ring);
 }
 
 html.dark .el-button--default {
-  background: #1a1d26;
-  border-color: #2a2f3b;
+  background: #151923;
+  border-color: #252c3c;
 }
 
 html.dark .el-button--default:hover {
-  background: #222732;
-  border-color: #3a4150;
+  background: #1c2230;
+  border-color: #364057;
   color: #ffffff;
 }
 
 html.dark .el-tabs__item {
-  color: #8d95a6;
+  color: #848ea2;
 }
 
 html.dark .el-tabs__item.is-active {
@@ -112,13 +113,13 @@ html.dark .el-tabs__item.is-active {
 }
 
 html.dark .el-tabs__nav-wrap::after {
-  background-color: #20242d;
+  background-color: #1c212e;
   height: 1px;
 }
 
 html.dark .el-pagination {
   --el-pagination-bg-color: transparent;
-  --el-pagination-button-bg-color: #1a1d26;
+  --el-pagination-button-bg-color: #151923;
   --el-pagination-hover-color: var(--el-color-primary);
 }
 
@@ -127,25 +128,24 @@ html.dark .el-tag {
 }
 
 html.dark .el-drawer {
-  background: #101319;
+  background: #0e1119;
 }
 
 html.dark .el-message-box {
-  background: #1b1e27;
-  border: 1px solid #262b36;
+  background: #161a24;
+  border: 1px solid #242a3a;
 }
 
-/* 表格里的小字第二行 */
 .cell-main {
   font-size: 13.5px;
-  color: var(--el-text-color-primary);
+  color: var(--app-text-main);
   line-height: 1.35;
 }
 
 .cell-sub {
   margin-top: 2px;
   font-size: 11.5px;
-  color: var(--el-text-color-secondary);
+  color: var(--app-text-muted);
   line-height: 1.35;
 }
 
@@ -154,9 +154,10 @@ html.dark .el-message-box {
   align-items: center;
   height: 20px;
   padding: 0 7px;
-  border-radius: 4px;
-  background: #1d222c;
-  color: #8d95a6;
+  border-radius: 5px;
+  background: var(--app-bg-subtle);
+  border: 1px solid var(--app-border);
+  color: var(--app-text-muted);
   font-size: 11.5px;
 }
 
@@ -177,12 +178,12 @@ html.dark .el-message-box {
   font-size: 14px;
   font-weight: 600;
   margin: 0 0 10px;
-  color: var(--el-text-color-primary);
+  color: var(--app-text-main);
 }
 
 .empty-hint {
   padding: 40px 0;
   text-align: center;
-  color: var(--el-text-color-secondary);
+  color: var(--app-text-muted);
   font-size: 13px;
 }

@@ -58,7 +58,7 @@ withDefaults(
 
 .is-primary {
   color: var(--el-color-primary);
-  background: rgba(64, 158, 255, 0.1);
+  background: var(--app-primary-soft);
   border-color: transparent;
 }
 </style>

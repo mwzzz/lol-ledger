@@ -106,8 +106,40 @@ def test_import_duplicate_in_file_rejected(client, admin_headers) -> None:
     assert _players(client, admin_headers)["total"] == 0
 
 
-def test_import_negative_and_precision_rejected(client, admin_headers) -> None:
-    for bad in (-1, 1.234):
+def test_import_negative_deposit_allowed_and_reconciles(client, admin_headers) -> None:
+    content = _xlsx(
+        [
+            ["玩家id", "押金"],
+            ["正数玩家", 100],
+            ["欠费玩家", -35.5],
+            ["整数欠费", "-20"],
+        ]
+    )
+    response = _upload(client, admin_headers, content)
+    assert response.status_code == 200, response.text
+    assert response.json() == {"created": 3, "deposited_cents": 4450}
+
+    rows = {row["game_id"]: row for row in _players(client, admin_headers)["items"]}
+    assert rows["正数玩家"]["deposit_cents"] == 10000
+    assert rows["欠费玩家"]["deposit_cents"] == -3550
+    assert rows["整数欠费"]["deposit_cents"] == -2000
+
+    ledger = client.get(
+        f"/api/v1/players/{rows['欠费玩家']['id']}/ledger", headers=admin_headers
+    ).json()
+    assert ledger["total"] == 1
+    assert ledger["items"][0]["reason"] == "refund"
+    assert ledger["items"][0]["amount_cents"] == 3550
+    assert ledger["items"][0]["balance_after_cents"] == -3550
+    assert ledger["items"][0]["note"] == "Excel 批量导入"
+
+    rec = client.get("/api/v1/reconcile", headers=admin_headers).json()
+    assert rec["ok"] is True
+    assert rec["total_deposit_cents"] == 4450
+
+
+def test_import_precision_rejected(client, admin_headers) -> None:
+    for bad in (1.234, -1.234):
         content = _xlsx([["坏人", bad]])
         response = _upload(client, admin_headers, content)
         assert response.status_code == 400, bad

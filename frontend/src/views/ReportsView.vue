@@ -1,18 +1,31 @@
 <template>
   <div class="page">
     <div class="page-head">
-      <span class="page-title">报表</span>
-      <span class="page-sub">流水明细与分红结算</span>
+      <span class="page-title">账本结算</span>
+      <span class="page-sub">押金场次流水明细 · 操作人分红结算</span>
+      <div class="spacer"></div>
+      <div v-if="auth.isAdmin" class="pos-seg" role="tablist">
+        <button
+          type="button"
+          class="pos-seg-btn"
+          :class="{ active: activeTab === 'records' }"
+          @click="onTabChange('records')"
+        >
+          流水与场次明细
+        </button>
+        <button
+          type="button"
+          class="pos-seg-btn"
+          :class="{ active: activeTab === 'dividend' }"
+          @click="onTabChange('dividend')"
+        >
+          分红结算
+        </button>
+      </div>
     </div>
 
-    <el-tabs v-model="activeTab" class="report-tabs" @tab-change="onTabChange">
-      <el-tab-pane label="流水明细" name="records">
-        <RecordsView embedded />
-      </el-tab-pane>
-      <el-tab-pane v-if="auth.isAdmin" label="分红结算" name="dividend">
-        <DividendSettlementView />
-      </el-tab-pane>
-    </el-tabs>
+    <RecordsView v-if="activeTab === 'records'" embedded />
+    <DividendSettlementView v-else-if="auth.isAdmin" />
   </div>
 </template>
 
@@ -46,19 +59,9 @@ watch(
   },
 )
 
-function onTabChange(name: string | number) {
-  router.replace({ query: { ...route.query, tab: String(name) } })
+function onTabChange(name: string) {
+  if (activeTab.value === name) return
+  activeTab.value = name
+  router.replace({ query: { ...route.query, tab: name } })
 }
 </script>
-
-<style scoped>
-.report-tabs :deep(.el-tabs__header) {
-  margin-bottom: 16px;
-}
-
-@media (max-width: 768px) {
-  .report-tabs :deep(.el-tabs__nav-wrap) {
-    overflow-x: auto;
-  }
-}
-</style>
