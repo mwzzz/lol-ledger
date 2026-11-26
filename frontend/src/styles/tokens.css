@@ -1,4 +1,4 @@
-/* 全站 POS 设计令牌：深色专业终端默认 + 清爽亮色完整映射 */
+/* 全站 POS 设计令牌：5 套主题（暗夜蓝 / 清爽白 / 海克斯金 / 暖纸护眼 / 电竞霓虹紫） */
 :root {
   --app-bg-canvas: #f3f5fa;
   --app-bg-page: #f3f5fa;
@@ -16,6 +16,8 @@
   --app-text-faint: #93a0b5;
   --app-primary: #3b82f6;
   --app-primary-hover: #2563eb;
+  --app-on-primary: #ffffff;
+  --app-brand-gradient: linear-gradient(135deg, #3b82f6, #2563eb);
   --app-primary-soft: rgba(59, 130, 246, 0.1);
   --app-primary-ring: rgba(59, 130, 246, 0.2);
   --app-danger-soft: rgba(239, 68, 68, 0.09);
@@ -42,6 +44,7 @@
   --app-font-lg: 20px;
 }
 
+/* 主题 1：暗夜蓝（默认深色终端） */
 html.dark {
   --app-bg-canvas: #080a0f;
   --app-bg-page: #080a0f;
@@ -59,6 +62,8 @@ html.dark {
   --app-text-faint: #566074;
   --app-primary: #4f8cff;
   --app-primary-hover: #6ba0ff;
+  --app-on-primary: #ffffff;
+  --app-brand-gradient: linear-gradient(135deg, #4f8cff, #2563eb);
   --app-primary-soft: rgba(79, 140, 255, 0.14);
   --app-primary-ring: rgba(79, 140, 255, 0.25);
   --app-danger-soft: rgba(248, 113, 113, 0.12);
@@ -67,4 +72,94 @@ html.dark {
   --app-panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.25);
   --app-panel-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
   --app-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+}
+
+/* 主题 3：海克斯金（LOL 经典午夜海蓝 + 金属暗金） */
+html.dark[data-theme='hextech'] {
+  --app-bg-canvas: #070d14;
+  --app-bg-page: #070d14;
+  --app-bg-rail: #0a131d;
+  --app-bg-panel: #0d1824;
+  --app-bg-panel-glass: rgba(13, 24, 36, 0.88);
+  --app-bg-elevated: #122131;
+  --app-bg-subtle: #09111a;
+  --app-bg-hover: #142537;
+  --app-bg-active: rgba(200, 170, 110, 0.16);
+  --app-border: #1c2e40;
+  --app-border-strong: #324a60;
+  --app-text-main: #f0e6d2;
+  --app-text-muted: #93a3b1;
+  --app-text-faint: #5b6d7e;
+  --app-primary: #c8aa6e;
+  --app-primary-hover: #d8be86;
+  --app-on-primary: #0b121a;
+  --app-brand-gradient: linear-gradient(135deg, #d8be86, #9d7d43);
+  --app-primary-soft: rgba(200, 170, 110, 0.15);
+  --app-primary-ring: rgba(200, 170, 110, 0.3);
+  --app-danger-soft: rgba(248, 113, 113, 0.13);
+  --app-warning-soft: rgba(245, 158, 11, 0.14);
+  --app-success-soft: rgba(45, 212, 191, 0.13);
+  --app-panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 10px 28px rgba(0, 0, 0, 0.32);
+  --app-panel-highlight: inset 0 1px 0 rgba(200, 170, 110, 0.08);
+  --app-shadow: 0 20px 52px rgba(0, 0, 0, 0.62);
+}
+
+/* 主题 4：暖纸护眼（米白低蓝光账本 + 墨青主色） */
+html[data-theme='warm'] {
+  --app-bg-canvas: #f3ede2;
+  --app-bg-page: #f3ede2;
+  --app-bg-rail: #faf6ee;
+  --app-bg-panel: #fcf9f2;
+  --app-bg-panel-glass: rgba(252, 249, 242, 0.9);
+  --app-bg-elevated: #fffdf8;
+  --app-bg-subtle: #efe8da;
+  --app-bg-hover: #eae2d2;
+  --app-bg-active: #dceceb;
+  --app-border: #e1d8c6;
+  --app-border-strong: #cbbda6;
+  --app-text-main: #2b241c;
+  --app-text-muted: #6d6152;
+  --app-text-faint: #9b8e7d;
+  --app-primary: #1f7a7a;
+  --app-primary-hover: #176363;
+  --app-on-primary: #ffffff;
+  --app-brand-gradient: linear-gradient(135deg, #258d8d, #165e63);
+  --app-primary-soft: rgba(31, 122, 122, 0.11);
+  --app-primary-ring: rgba(31, 122, 122, 0.22);
+  --app-danger-soft: rgba(220, 38, 38, 0.09);
+  --app-warning-soft: rgba(217, 119, 6, 0.12);
+  --app-success-soft: rgba(15, 157, 110, 0.11);
+  --app-panel-shadow: 0 1px 2px rgba(43, 36, 28, 0.05), 0 6px 20px rgba(43, 36, 28, 0.04);
+  --app-panel-highlight: inset 0 1px 0 rgba(255, 253, 248, 0.9);
+  --app-shadow: 0 12px 34px rgba(43, 36, 28, 0.11);
+}
+
+/* 主题 5：电竞霓虹紫（暗紫炭底 + 电光紫主色） */
+html.dark[data-theme='cyber'] {
+  --app-bg-canvas: #0b0814;
+  --app-bg-page: #0b0814;
+  --app-bg-rail: #100c1c;
+  --app-bg-panel: #151024;
+  --app-bg-panel-glass: rgba(21, 16, 36, 0.88);
+  --app-bg-elevated: #1d1631;
+  --app-bg-subtle: #110d1e;
+  --app-bg-hover: #211839;
+  --app-bg-active: rgba(168, 85, 247, 0.18);
+  --app-border: #271f40;
+  --app-border-strong: #3d3064;
+  --app-text-main: #f3effd;
+  --app-text-muted: #9a8fb8;
+  --app-text-faint: #645985;
+  --app-primary: #a855f7;
+  --app-primary-hover: #c084fc;
+  --app-on-primary: #ffffff;
+  --app-brand-gradient: linear-gradient(135deg, #c084fc, #7e22ce);
+  --app-primary-soft: rgba(168, 85, 247, 0.16);
+  --app-primary-ring: rgba(168, 85, 247, 0.3);
+  --app-danger-soft: rgba(251, 113, 133, 0.13);
+  --app-warning-soft: rgba(251, 191, 36, 0.13);
+  --app-success-soft: rgba(52, 211, 153, 0.13);
+  --app-panel-shadow: 0 1px 2px rgba(4, 2, 12, 0.48), 0 10px 28px rgba(16, 7, 36, 0.35);
+  --app-panel-highlight: inset 0 1px 0 rgba(192, 132, 252, 0.08);
+  --app-shadow: 0 20px 52px rgba(6, 3, 16, 0.65);
 }

@@ -1,49 +1,143 @@
-/* 暗色专业终端主题覆盖（在 Element Plus css-vars 之后引入） */
+/* 主题级 Element Plus 覆盖（在 Element Plus css-vars 与 tokens.css 之后引入） */
 html.dark {
-  --el-bg-color: #10131b;
-  --el-bg-color-page: #080a0f;
-  --el-bg-color-overlay: #161a24;
-  --el-fill-color-blank: #10131b;
-  --el-fill-color: #151923;
-  --el-fill-color-light: #151923;
-  --el-fill-color-lighter: #131720;
-  --el-fill-color-dark: #1d2331;
-  --el-border-color: #232938;
-  --el-border-color-light: #1c212e;
-  --el-border-color-lighter: #181c27;
-  --el-border-color-extra-light: #141821;
-  --el-text-color-primary: #edf1f8;
+  --el-bg-color: var(--app-bg-panel);
+  --el-bg-color-page: var(--app-bg-canvas);
+  --el-bg-color-overlay: var(--app-bg-elevated);
+  --el-fill-color-blank: var(--app-bg-panel);
+  --el-fill-color: var(--app-bg-hover);
+  --el-fill-color-light: var(--app-bg-hover);
+  --el-fill-color-lighter: var(--app-bg-subtle);
+  --el-fill-color-dark: var(--app-bg-elevated);
+  --el-border-color: var(--app-border-strong);
+  --el-border-color-light: var(--app-border);
+  --el-border-color-lighter: var(--app-border);
+  --el-border-color-extra-light: var(--app-bg-subtle);
+  --el-text-color-primary: var(--app-text-main);
   --el-text-color-regular: #bcc5d6;
-  --el-text-color-secondary: #848ea2;
-  --el-text-color-placeholder: #566074;
+  --el-text-color-secondary: var(--app-text-muted);
+  --el-text-color-placeholder: var(--app-text-faint);
   --el-text-color-disabled: #454d5e;
-  --el-color-primary: #4f8cff;
+  --el-color-primary: var(--app-primary);
   --el-color-primary-light-3: #3e70cc;
   --el-color-primary-light-5: #2f5499;
   --el-color-primary-light-7: #203866;
   --el-color-primary-light-8: #182a4d;
   --el-color-primary-light-9: #121f38;
-  --el-color-primary-dark-2: #6ba0ff;
+  --el-color-primary-dark-2: var(--app-primary-hover);
   --el-color-success: #34d399;
   --el-color-warning: #f5b544;
   --el-color-danger: #f87171;
   --el-color-error: #f87171;
-  --el-color-info: #848ea2;
+  --el-color-info: var(--app-text-muted);
 
   --el-table-bg-color: transparent;
   --el-table-tr-bg-color: transparent;
   --el-table-expanded-cell-bg-color: transparent;
-  --el-table-header-bg-color: #121620;
-  --el-table-header-text-color: #848ea2;
-  --el-table-border-color: #1c212e;
-  --el-table-row-hover-bg-color: #161b26;
-  --el-table-text-color: #dee3ed;
-  --el-table-current-row-bg-color: #192131;
+  --el-table-header-bg-color: var(--app-bg-subtle);
+  --el-table-header-text-color: var(--app-text-muted);
+  --el-table-border-color: var(--app-border);
+  --el-table-row-hover-bg-color: var(--app-bg-hover);
+  --el-table-text-color: var(--app-text-main);
+  --el-table-current-row-bg-color: var(--app-bg-active);
 
-  --el-dialog-bg-color: #141822;
-  --el-popover-bg-color: #161a24;
+  --el-dialog-bg-color: var(--app-bg-panel);
+  --el-popover-bg-color: var(--app-bg-elevated);
   --el-mask-color: rgba(4, 6, 10, 0.76);
-  --el-box-shadow-light: 0 20px 50px rgba(0, 0, 0, 0.55);
+  --el-box-shadow-light: var(--app-shadow);
+}
+
+/* 海克斯金：Element Plus 主色梯度 + 高对比主按钮深色字 */
+html.dark[data-theme='hextech'] {
+  --el-text-color-regular: #d4cab6;
+  --el-text-color-disabled: #495a6a;
+  --el-color-primary-light-3: #a88e5b;
+  --el-color-primary-light-5: #846f48;
+  --el-color-primary-light-7: #5c4e35;
+  --el-color-primary-light-8: #433a29;
+  --el-color-primary-light-9: #2c2820;
+  --el-color-success: #2dd4bf;
+  --el-color-warning: #f59e0b;
+  --el-color-danger: #f87171;
+}
+
+html.dark[data-theme='hextech'] .el-button--primary:not(.is-link):not(.is-text):not(.is-plain) {
+  --el-button-text-color: #0b121a;
+  --el-button-hover-text-color: #0b121a;
+  --el-button-active-text-color: #0b121a;
+  font-weight: 650;
+}
+
+/* 电竞霓虹紫：Element Plus 紫色梯度 */
+html.dark[data-theme='cyber'] {
+  --el-text-color-regular: #d4c9ea;
+  --el-text-color-disabled: #4e4369;
+  --el-color-primary-light-3: #8b46cc;
+  --el-color-primary-light-5: #6e38a3;
+  --el-color-primary-light-7: #502878;
+  --el-color-primary-light-8: #3a1d57;
+  --el-color-primary-light-9: #26133a;
+  --el-color-success: #34d399;
+  --el-color-warning: #fbbf24;
+  --el-color-danger: #fb7185;
+  --el-color-error: #fb7185;
+}
+
+/* 暖纸护眼：亮色纸感 Element Plus 映射 */
+html[data-theme='warm'] {
+  --el-bg-color: #fcf9f2;
+  --el-bg-color-page: #f3ede2;
+  --el-bg-color-overlay: #fffdf8;
+  --el-fill-color-blank: #fffdf8;
+  --el-fill-color: #ece4d5;
+  --el-fill-color-light: #f2ebdd;
+  --el-fill-color-lighter: #f6f1e6;
+  --el-fill-color-dark: #e4dac8;
+  --el-border-color: #dbd0bc;
+  --el-border-color-light: #e4dbc9;
+  --el-border-color-lighter: #ece4d6;
+  --el-border-color-extra-light: #f3ede2;
+  --el-text-color-primary: #2b241c;
+  --el-text-color-regular: #493f34;
+  --el-text-color-secondary: #6d6152;
+  --el-text-color-placeholder: #9b8e7d;
+  --el-text-color-disabled: #b7aa98;
+  --el-color-primary: #1f7a7a;
+  --el-color-primary-light-3: #4a9696;
+  --el-color-primary-light-5: #76b2b2;
+  --el-color-primary-light-7: #a3cece;
+  --el-color-primary-light-8: #c1dfdf;
+  --el-color-primary-light-9: #e2f0ef;
+  --el-color-primary-dark-2: #176363;
+  --el-color-success: #0f9d6e;
+  --el-color-warning: #d97706;
+  --el-color-danger: #dc2626;
+  --el-color-error: #dc2626;
+  --el-color-info: #786c5d;
+
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-expanded-cell-bg-color: transparent;
+  --el-table-header-bg-color: #f4eee1;
+  --el-table-header-text-color: #6d6152;
+  --el-table-border-color: #e4dbc9;
+  --el-table-row-hover-bg-color: #f2ebdd;
+  --el-table-text-color: #2b241c;
+  --el-table-current-row-bg-color: #dceceb;
+
+  --el-dialog-bg-color: #fcf9f2;
+  --el-popover-bg-color: #fffdf8;
+}
+
+html[data-theme='warm'] .el-button--default {
+  background: #fffdf8;
+  border-color: #d6cab4;
+  color: #3d342a;
+}
+
+html[data-theme='warm'] .el-button--default:hover {
+  background: #f2ebdd;
+  border-color: #bcae94;
+  color: #2b241c;
 }
 
 html.dark .el-table {
@@ -58,7 +152,7 @@ html.dark .el-table th.el-table__cell {
 }
 
 html.dark .el-table td.el-table__cell {
-  border-bottom: 1px solid #181d28;
+  border-bottom: 1px solid var(--app-border);
 }
 
 html.dark .el-table__inner-wrapper::before {
@@ -70,7 +164,7 @@ html.dark .el-table tr {
 }
 
 html.dark .el-dialog {
-  border: 1px solid #242a3a;
+  border: 1px solid var(--app-border-strong);
   border-radius: 14px;
   box-shadow: var(--app-shadow), var(--app-panel-highlight);
 }
@@ -83,8 +177,8 @@ html.dark .el-dialog__title {
 html.dark .el-input__wrapper,
 html.dark .el-select__wrapper,
 html.dark .el-textarea__inner {
-  background-color: #0c0f16;
-  box-shadow: 0 0 0 1px #232938 inset;
+  background-color: var(--app-bg-subtle);
+  box-shadow: 0 0 0 1px var(--app-border-strong) inset;
 }
 
 html.dark .el-input__wrapper.is-focus,
@@ -94,18 +188,18 @@ html.dark .el-textarea__inner:focus {
 }
 
 html.dark .el-button--default {
-  background: #151923;
-  border-color: #252c3c;
+  background: var(--app-bg-elevated);
+  border-color: var(--app-border-strong);
 }
 
 html.dark .el-button--default:hover {
-  background: #1c2230;
-  border-color: #364057;
-  color: #ffffff;
+  background: var(--app-bg-hover);
+  border-color: var(--app-primary-ring);
+  color: var(--app-text-main);
 }
 
 html.dark .el-tabs__item {
-  color: #848ea2;
+  color: var(--app-text-muted);
 }
 
 html.dark .el-tabs__item.is-active {
@@ -113,13 +207,13 @@ html.dark .el-tabs__item.is-active {
 }
 
 html.dark .el-tabs__nav-wrap::after {
-  background-color: #1c212e;
+  background-color: var(--app-border);
   height: 1px;
 }
 
 html.dark .el-pagination {
   --el-pagination-bg-color: transparent;
-  --el-pagination-button-bg-color: #151923;
+  --el-pagination-button-bg-color: var(--app-bg-elevated);
   --el-pagination-hover-color: var(--el-color-primary);
 }
 
@@ -128,12 +222,12 @@ html.dark .el-tag {
 }
 
 html.dark .el-drawer {
-  background: #0e1119;
+  background: var(--app-bg-rail);
 }
 
 html.dark .el-message-box {
-  background: #161a24;
-  border: 1px solid #242a3a;
+  background: var(--app-bg-elevated);
+  border: 1px solid var(--app-border-strong);
 }
 
 .cell-main {

@@ -99,7 +99,7 @@ function isActive(name: string): boolean {
     padding: 0 3px;
     border-radius: 999px;
     background: var(--app-primary);
-    color: #fff;
+    color: var(--app-on-primary);
     font-size: 10px;
     font-weight: 700;
     line-height: 15px;

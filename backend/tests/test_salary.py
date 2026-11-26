@@ -217,6 +217,20 @@ def test_next_window_ignores_voided_batch(client, admin) -> None:
     assert window["source"] == "default"
 
 
+def test_next_window_uses_now_when_anchor_past_morning(client, admin) -> None:
+    wallet = new_player(client, admin["headers"], "工资钱包3")
+    _insert_payment(
+        admin["merchant_id"], admin["id"], wallet["id"],
+        "2026-11-20T12:00:00+08:00", "2026-11-20", "b3",
+    )
+    now_dt = datetime(2026, 11, 20, 14, 48, 30, tzinfo=CN)
+    with dbmod.write_session() as session:
+        window = salary_service.next_window(session, admin["merchant_id"], now_dt)
+    assert window["source"] == "last_paid"
+    assert window["start"] == "2026-11-20T12:00:01"
+    assert window["end"] == "2026-11-20T14:48:30"
+
+
 def test_next_window_endpoint(client, admin_headers, staff_headers) -> None:
     body = client.get("/api/v1/salary/next-window", headers=admin_headers)
     assert body.status_code == 200
@@ -226,3 +240,110 @@ def test_next_window_endpoint(client, admin_headers, staff_headers) -> None:
     assert (
         client.get("/api/v1/salary/next-window", headers=staff_headers).status_code == 403
     )
+
+
+def test_records_list_filters_void_and_isolation(
+    client, admin_headers, admin, staff, staff_headers
+) -> None:
+    # 店员无权查看发薪记录
+    assert client.get("/api/v1/salary/records", headers=staff_headers).status_code == 403
+
+    # 初始为空
+    empty = client.get("/api/v1/salary/records", headers=admin_headers)
+    assert empty.status_code == 200
+    assert empty.json()["total"] == 0
+    assert empty.json()["items"] == []
+    assert empty.json()["summary"]["live_total_cents"] == 0
+
+    # 让 staff 与 admin 各开一局（各自产生 300 分分红）
+    p1 = new_player(client, admin_headers, "发薪客A")
+    p2 = new_player(client, admin_headers, "发薪客B")
+    create_session(client, staff["headers"], [p1["id"], p2["id"]], tea=300)
+    create_session(client, admin_headers, [p1["id"], p2["id"]], tea=300)
+    w_staff = new_player(client, admin_headers, "员工钱包")
+    w_admin = new_player(client, admin_headers, "店长钱包")
+    _bind(client, admin_headers, staff["id"], w_staff["id"])
+    _bind(client, admin_headers, admin["id"], w_admin["id"])
+
+    # 第一批：同时给两个人发今天工资，然后整批撤销
+    batch1 = _pay(
+        client, admin_headers, [staff["id"], admin["id"]], note="首批发错"
+    ).json()
+    assert (
+        client.post(
+            "/api/v1/salary/void",
+            json={"batch_id": batch1["batch_id"], "note": "时间选错"},
+            headers=admin_headers,
+        ).status_code
+        == 201
+    )
+
+    # 第二批：只给 staff 重发今天工资
+    batch2 = _pay(client, admin_headers, [staff["id"]], note="重发正确").json()
+
+    # 另一家商家也插入一条记录，确保跨商家隔离
+    other_merchant = create_merchant_direct("其他店")
+    other_user = create_user_direct("other-a", "admin", merchant_id=other_merchant)
+    other_player = new_player(client, other_user["headers"], "他店钱包")
+    _insert_payment(
+        other_merchant,
+        other_user["id"],
+        other_player["id"],
+        f"{TODAY}T23:59:59+08:00",
+        TODAY,
+        "other-batch",
+    )
+
+    all_resp = client.get("/api/v1/salary/records", headers=admin_headers).json()
+    assert all_resp["total"] == 2
+    assert all_resp["summary"]["live_total_cents"] == 300
+    assert all_resp["summary"]["live_batch_count"] == 1
+    assert all_resp["summary"]["live_payment_count"] == 1
+    assert all_resp["summary"]["voided_total_cents"] == 600
+    assert all_resp["summary"]["voided_payment_count"] == 2
+
+    # 最新批次在前
+    first, second = all_resp["items"]
+    assert first["batch_id"] == batch2["batch_id"]
+    assert first["status"] == "live"
+    assert first["people_count"] == 1
+    assert first["total_cents"] == 300
+    assert first["paid_by"]["id"] == admin["id"]
+    assert first["lines"][0]["player"]["game_id"] == "员工钱包"
+
+    assert second["batch_id"] == batch1["batch_id"]
+    assert second["status"] == "voided"
+    assert second["people_count"] == 2
+    assert second["total_cents"] == 600
+    assert second["voided_by"]["id"] == admin["id"]
+
+    # 按状态、按店员、按日期筛选
+    live_only = client.get(
+        "/api/v1/salary/records", params={"status": "live"}, headers=admin_headers
+    ).json()
+    assert live_only["total"] == 1
+    assert live_only["items"][0]["batch_id"] == batch2["batch_id"]
+
+    admin_only = client.get(
+        "/api/v1/salary/records", params={"user_id": admin["id"]}, headers=admin_headers
+    ).json()
+    assert admin_only["total"] == 1
+    assert admin_only["items"][0]["batch_id"] == batch1["batch_id"]
+    assert admin_only["summary"]["voided_total_cents"] == 300
+
+    future_only = client.get(
+        "/api/v1/salary/records",
+        params={"date_from": "2099-01-01", "date_to": "2099-12-31"},
+        headers=admin_headers,
+    ).json()
+    assert future_only["total"] == 0
+
+    # 分页
+    p1 = client.get(
+        "/api/v1/salary/records",
+        params={"page": 1, "page_size": 1},
+        headers=admin_headers,
+    ).json()
+    assert p1["total"] == 2
+    assert len(p1["items"]) == 1
+    assert p1["items"][0]["batch_id"] == batch2["batch_id"]

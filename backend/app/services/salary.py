@@ -15,12 +15,12 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import String, case, cast, desc, func, select
 from sqlalchemy.orm import Session
 
 from app.deps import Actor
 from app.errors import AppError, NotFoundError
-from app.models import Player, SalaryPayment, User
+from app.models import LedgerEntry, Player, SalaryPayment, User
 from app.services import deposits
 from app.services import summary as summary_service
 from app.services.players import clean_text, get_player
@@ -98,12 +98,13 @@ def preview(session: Session, merchant_id: int, date_from: str | None, date_to: 
 def next_window(
     session: Session, merchant_id: int, now_dt: datetime | None = None
 ) -> dict:
-    """「续接上次发薪」建议区间：起点接上次发薪结束后的下一秒，终点今天 08:00。
+    """「续接上次发薪」建议区间：起点接上次发薪结束后的下一秒，终点默认今天 08:00。
 
+    若上次结束已晚于今天 08:00，则终点顺延到当前时间（避免夹成 0 秒空区间）。
     没有未冲销发放记录时，回落到汇总默认「今天-1天 08:00 ～ 今天 08:00」。
     """
-    now_dt = now_dt or now_cn()
-    today = now_dt.astimezone(CN_TZ).date()
+    now_cn_dt = (now_dt or now_cn()).astimezone(CN_TZ).replace(microsecond=0)
+    today = now_cn_dt.date()
     end_dt = datetime(today.year, today.month, today.day, 8, 0, tzinfo=CN_TZ)
 
     anchor_end = session.scalar(
@@ -123,7 +124,7 @@ def next_window(
         else:
             source = "last_paid"
             if start_dt > end_dt:
-                end_dt = start_dt
+                end_dt = max(start_dt, now_cn_dt)
     if start_dt is None:
         start_dt = end_dt - timedelta(days=1)
         source = "default"
@@ -280,4 +281,246 @@ def void_batch(session: Session, actor: Actor, batch_id: str, note: str = "") ->
         "batch_id": batch_id,
         "voided": voided,
         "total_cents": sum(item["amount_cents"] for item in voided),
+    }
+
+
+def _user_brief(user: User | None) -> dict | None:
+    if user is None:
+        return None
+    return {
+        "id": int(user.id),
+        "username": user.username,
+        "display_name": user.display_name or user.username,
+    }
+
+
+def list_records(
+    session: Session,
+    merchant_id: int,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    status: str = "all",
+    user_id: int | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> dict:
+    """按发薪批次分页查询历史发工资记录，附带当前筛选条件下的汇总。"""
+    clean_status = status if status in ("all", "live", "voided") else "all"
+    from_day = (date_from or "").strip()[:10]
+    to_day = (date_to or "").strip()[:10]
+
+    conds = [SalaryPayment.merchant_id == merchant_id]
+    if clean_status == "live":
+        conds.append(SalaryPayment.voided_at.is_(None))
+    elif clean_status == "voided":
+        conds.append(SalaryPayment.voided_at.is_not(None))
+    if user_id is not None:
+        conds.append(SalaryPayment.user_id == int(user_id))
+    if from_day:
+        conds.append(SalaryPayment.wage_date >= from_day)
+    if to_day:
+        conds.append(SalaryPayment.wage_date <= to_day)
+
+    batch_key = case(
+        (SalaryPayment.batch_id != "", SalaryPayment.batch_id),
+        else_=cast(SalaryPayment.id, String),
+    )
+
+    summary_row = session.execute(
+        select(
+            func.coalesce(
+                func.sum(
+                    case(
+                        (SalaryPayment.voided_at.is_(None), SalaryPayment.amount_cents),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (SalaryPayment.voided_at.is_not(None), SalaryPayment.amount_cents),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(case((SalaryPayment.voided_at.is_(None), 1), else_=0)),
+                0,
+            ),
+            func.coalesce(
+                func.sum(case((SalaryPayment.voided_at.is_not(None), 1), else_=0)),
+                0,
+            ),
+            func.count(
+                func.distinct(
+                    case((SalaryPayment.voided_at.is_(None), batch_key), else_=None)
+                )
+            ),
+            func.count(func.distinct(batch_key)),
+        ).where(*conds)
+    ).one()
+
+    total_batches = int(summary_row[5] or 0)
+    summary = {
+        "live_total_cents": int(summary_row[0] or 0),
+        "voided_total_cents": int(summary_row[1] or 0),
+        "live_payment_count": int(summary_row[2] or 0),
+        "voided_payment_count": int(summary_row[3] or 0),
+        "live_batch_count": int(summary_row[4] or 0),
+    }
+
+    if total_batches == 0:
+        return {
+            "items": [],
+            "total": 0,
+            "page": page,
+            "page_size": page_size,
+            "summary": summary,
+        }
+
+    offset = (page - 1) * page_size
+    page_keys = list(
+        session.scalars(
+            select(batch_key)
+            .where(*conds)
+            .group_by(batch_key)
+            .order_by(
+                desc(func.max(SalaryPayment.created_at)),
+                desc(func.max(SalaryPayment.id)),
+            )
+            .offset(offset)
+            .limit(page_size)
+        )
+    )
+    if not page_keys:
+        return {
+            "items": [],
+            "total": total_batches,
+            "page": page,
+            "page_size": page_size,
+            "summary": summary,
+        }
+
+    rows = list(
+        session.scalars(
+            select(SalaryPayment)
+            .where(
+                SalaryPayment.merchant_id == merchant_id,
+                batch_key.in_(page_keys),
+            )
+            .order_by(desc(SalaryPayment.amount_cents), SalaryPayment.id)
+        )
+    )
+
+    user_ids: set[int] = set()
+    player_ids: set[int] = set()
+    ledger_ids: set[int] = set()
+    for sp in rows:
+        user_ids.add(int(sp.user_id))
+        player_ids.add(int(sp.player_id))
+        if sp.voided_by:
+            user_ids.add(int(sp.voided_by))
+        if sp.ledger_entry_id:
+            ledger_ids.add(int(sp.ledger_entry_id))
+
+    ledger_operators: dict[int, int] = {}
+    if ledger_ids:
+        for entry_id, op_id in session.execute(
+            select(LedgerEntry.id, LedgerEntry.operator_id).where(
+                LedgerEntry.merchant_id == merchant_id,
+                LedgerEntry.id.in_(ledger_ids),
+            )
+        ):
+            if op_id is not None:
+                ledger_operators[int(entry_id)] = int(op_id)
+                user_ids.add(int(op_id))
+
+    users = (
+        {
+            int(u.id): u
+            for u in session.scalars(
+                select(User).where(User.merchant_id == merchant_id, User.id.in_(user_ids))
+            )
+        }
+        if user_ids
+        else {}
+    )
+    players = (
+        {
+            int(p.id): p
+            for p in session.scalars(
+                select(Player).where(
+                    Player.merchant_id == merchant_id, Player.id.in_(player_ids)
+                )
+            )
+        }
+        if player_ids
+        else {}
+    )
+
+    grouped: dict[str, list[SalaryPayment]] = {key: [] for key in page_keys}
+    for sp in rows:
+        key = sp.batch_id if sp.batch_id else str(sp.id)
+        if key in grouped:
+            grouped[key].append(sp)
+
+    items: list[dict] = []
+    for key in page_keys:
+        group = grouped.get(key) or []
+        if not group:
+            continue
+        first = group[0]
+        is_voided = all(sp.voided_at is not None for sp in group)
+        paid_by_id = (
+            ledger_operators.get(int(first.ledger_entry_id))
+            if first.ledger_entry_id
+            else None
+        )
+        voided_at = next((sp.voided_at for sp in group if sp.voided_at), None)
+        voided_by_id = next((int(sp.voided_by) for sp in group if sp.voided_by), None)
+
+        lines: list[dict] = []
+        for sp in group:
+            player = players.get(int(sp.player_id))
+            lines.append(
+                {
+                    "id": int(sp.id),
+                    "user": _user_brief(users.get(int(sp.user_id))),
+                    "player": {
+                        "id": int(sp.player_id),
+                        "game_id": player.game_id if player else f"#{sp.player_id}",
+                    },
+                    "amount_cents": int(sp.amount_cents),
+                    "ledger_entry_id": int(sp.ledger_entry_id) if sp.ledger_entry_id else None,
+                }
+            )
+
+        items.append(
+            {
+                "batch_id": first.batch_id or str(first.id),
+                "wage_date": first.wage_date,
+                "period_start": first.period_start,
+                "period_end": first.period_end,
+                "created_at": first.created_at,
+                "note": first.note,
+                "status": "voided" if is_voided else "live",
+                "total_cents": sum(int(sp.amount_cents) for sp in group),
+                "people_count": len(group),
+                "paid_by": _user_brief(users.get(paid_by_id)) if paid_by_id else None,
+                "voided_at": voided_at,
+                "voided_by": _user_brief(users.get(voided_by_id)) if voided_by_id else None,
+                "lines": lines,
+            }
+        )
+
+    return {
+        "items": items,
+        "total": total_batches,
+        "page": page,
+        "page_size": page_size,
+        "summary": summary,
     }

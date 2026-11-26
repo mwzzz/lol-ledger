@@ -843,7 +843,7 @@ onMounted(async () => {
   padding: 0 5px;
   border-radius: 999px;
   background: var(--app-primary);
-  color: #fff;
+  color: var(--app-on-primary);
   font-size: 11px;
   line-height: 16px;
 }
@@ -1007,13 +1007,14 @@ onMounted(async () => {
 .board-btn.active {
   border-color: var(--app-primary);
   background: var(--app-primary);
-  color: #ffffff;
+  color: var(--app-on-primary);
   font-variant-numeric: tabular-nums;
 }
 
 .board-btn.active:hover {
   background: var(--el-color-danger);
   border-color: var(--el-color-danger);
+  color: #ffffff;
 }
 
 .board-disabled,
@@ -1139,7 +1140,7 @@ onMounted(async () => {
 .cash-btn.in-slot {
   background: var(--app-primary);
   border-color: var(--app-primary);
-  color: #fff;
+  color: var(--app-on-primary);
 }
 
 .cash-btn.more {
@@ -1188,7 +1189,7 @@ onMounted(async () => {
     border: none;
     border-radius: 999px;
     background: var(--app-primary);
-    color: #ffffff;
+    color: var(--app-on-primary);
     box-shadow: 0 8px 24px var(--app-primary-ring);
     font: inherit;
     font-size: 13px;

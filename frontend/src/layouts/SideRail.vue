@@ -43,19 +43,23 @@
         </button>
       </el-tooltip>
 
-      <el-tooltip :content="app.theme === 'dark' ? '切换亮色模式' : '切换暗色模式'" placement="right">
-        <button
-          type="button"
-          class="rail-tool"
-          aria-label="切换主题"
-          @click="app.toggleTheme()"
-        >
-          <el-icon>
-            <Sunny v-if="app.theme === 'dark'" />
-            <Moon v-else />
-          </el-icon>
-        </button>
-      </el-tooltip>
+      <ThemePicker placement="right-end">
+        <template #default="{ current }">
+          <button
+            type="button"
+            class="rail-tool"
+            :title="`切换主题（当前：${current.label}）`"
+            aria-label="切换主题"
+          >
+            <span
+              class="rail-theme-dot"
+              :style="{
+                background: `linear-gradient(135deg, ${current.swatchBg} 50%, ${current.swatchAccent} 50%)`,
+              }"
+            ></span>
+          </button>
+        </template>
+      </ThemePicker>
 
       <el-dropdown trigger="click" placement="right-end" @command="onUserCommand">
         <button type="button" class="rail-avatar" :title="auth.displayName || '当前账号'">
@@ -82,14 +86,13 @@ import {
   MagicStick,
   Memo,
   Monitor,
-  Moon,
   Setting,
-  Sunny,
   TrendCharts,
 } from '@element-plus/icons-vue'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import ThemePicker from '@/components/common/ThemePicker.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useSessionDraftStore } from '@/stores/sessionDraft'
@@ -161,8 +164,8 @@ async function onUserCommand(command: string) {
   margin-bottom: 14px;
   border: none;
   border-radius: 11px;
-  background: linear-gradient(135deg, var(--app-primary), #2563eb);
-  color: #ffffff;
+  background: var(--app-brand-gradient);
+  color: var(--app-on-primary);
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -244,11 +247,19 @@ async function onUserCommand(command: string) {
   padding: 0 4px;
   border-radius: 999px;
   background: var(--app-primary);
-  color: #ffffff;
+  color: var(--app-on-primary);
   font-size: 10px;
   font-weight: 700;
   line-height: 16px;
   font-variant-numeric: tabular-nums;
+}
+
+.rail-theme-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--app-border-strong);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
 }
 
 .rail-label {

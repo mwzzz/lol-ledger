@@ -3,6 +3,8 @@ import { defineStore } from 'pinia'
 import { overviewApi, summaryApi } from '@/api'
 import type { SummaryTotals } from '@/api/types'
 import { useAuthStore } from '@/stores/auth'
+import { todayText } from '@/utils/datetime'
+import { getThemeMeta, normalizeTheme, THEMES, type ThemeId } from '@/utils/themes'
 
 const THEME_KEY = 'lol_theme'
 const SUMMARY_RANGE_KEY = 'lol_summary_range'
@@ -10,37 +12,51 @@ const DOCK_OPEN_KEY = 'lol_pos_dock_open'
 
 const MOMENT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/
 const MINUTE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 function minuteText(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
-function readSummaryRange(): [string, string] | null {
+interface StoredSummaryRange {
+  range: [string, string]
+  savedDay: string
+}
+
+function readSummaryRange(): StoredSummaryRange | null {
   try {
     const raw = localStorage.getItem(SUMMARY_RANGE_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw)
     if (
-      Array.isArray(parsed) &&
-      parsed.length === 2 &&
-      typeof parsed[0] === 'string' &&
-      typeof parsed[1] === 'string' &&
-      MOMENT_RE.test(parsed[0]) &&
-      MOMENT_RE.test(parsed[1])
+      parsed &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
+      typeof parsed.savedDay === 'string' &&
+      DAY_RE.test(parsed.savedDay) &&
+      Array.isArray(parsed.range) &&
+      parsed.range.length === 2 &&
+      typeof parsed.range[0] === 'string' &&
+      typeof parsed.range[1] === 'string' &&
+      MOMENT_RE.test(parsed.range[0]) &&
+      MOMENT_RE.test(parsed.range[1])
     ) {
-      return [parsed[0], parsed[1]]
+      return { range: [parsed.range[0], parsed.range[1]], savedDay: parsed.savedDay }
     }
   } catch {
-    // 脏数据直接忽略，用默认区间
+    // 脏数据或旧版无日期格式直接忽略，触发重新计算区间
   }
   return null
 }
 
+const initialStoredSummaryRange = readSummaryRange()
+
 export const useAppStore = defineStore('app', {
   state: () => ({
-    theme: localStorage.getItem(THEME_KEY) || 'dark',
-    summaryRange: readSummaryRange() as [string, string] | null,
+    theme: normalizeTheme(localStorage.getItem(THEME_KEY)) as ThemeId,
+    summaryRange: (initialStoredSummaryRange?.range ?? null) as [string, string] | null,
+    summaryRangeDay: (initialStoredSummaryRange?.savedDay ?? null) as string | null,
     dockOpen: localStorage.getItem(DOCK_OPEN_KEY) !== '0',
     mobileDockVisible: false,
     changelogVisible: false,
@@ -62,12 +78,24 @@ export const useAppStore = defineStore('app', {
   }),
   actions: {
     applyTheme() {
-      document.documentElement.classList.toggle('dark', this.theme === 'dark')
+      const meta = getThemeMeta(this.theme)
+      const root = document.documentElement
+      root.classList.toggle('dark', meta.isDark)
+      root.setAttribute('data-theme', meta.id)
+    },
+    setTheme(id: ThemeId) {
+      this.theme = normalizeTheme(id)
+      try {
+        localStorage.setItem(THEME_KEY, this.theme)
+      } catch {
+        // ignore storage quota errors
+      }
+      this.applyTheme()
     },
     toggleTheme() {
-      this.theme = this.theme === 'dark' ? 'light' : 'dark'
-      localStorage.setItem(THEME_KEY, this.theme)
-      this.applyTheme()
+      const idx = THEMES.findIndex((t) => t.id === this.theme)
+      const next = THEMES[(idx + 1) % THEMES.length]
+      this.setTheme(next.id)
     },
     toggleDock(force?: boolean) {
       this.dockOpen = typeof force === 'boolean' ? force : !this.dockOpen
@@ -95,10 +123,25 @@ export const useAppStore = defineStore('app', {
     notifyPlayerCreated() {
       this.playerTick += 1
     },
+    getTodaySummaryRange(): [string, string] | null {
+      const today = todayText()
+      if (this.summaryRange && this.summaryRangeDay === today) {
+        return this.summaryRange
+      }
+      const stored = readSummaryRange()
+      if (stored && stored.savedDay === today) {
+        this.summaryRange = stored.range
+        this.summaryRangeDay = stored.savedDay
+        return stored.range
+      }
+      return null
+    },
     setSummaryRange(range: [string, string]) {
+      const savedDay = todayText()
       this.summaryRange = range
+      this.summaryRangeDay = savedDay
       try {
-        localStorage.setItem(SUMMARY_RANGE_KEY, JSON.stringify(range))
+        localStorage.setItem(SUMMARY_RANGE_KEY, JSON.stringify({ range, savedDay }))
       } catch {
         // 存储写满等异常不影响本次会话内记忆
       }

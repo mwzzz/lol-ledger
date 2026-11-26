@@ -223,9 +223,10 @@ Authorization: Bearer <access_token>
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/salary/preview?date_from&date_to` | 列出区间内工资>0 的操作人：`amount_cents`、绑定账户 `salary_player_id`/`salary_player_game_id`、本工资日是否已发 `paid`/`paid_amount_cents`/`paid_batch_id` |
-| GET | `/salary/next-window` | 「续接上次发薪」建议区间：`{start, end, source, anchor_end}`。`start` = 未冲销发放记录里最晚 `period_end` 的下一秒，`end` = 今天 08:00；无发放记录时 `source=default`，回落到「今天-1天 08:00 ～ 今天 08:00」 |
+| GET | `/salary/next-window` | 「续接上次发薪」建议区间：`{start, end, source, anchor_end}`。`start` = 未冲销发放记录里最晚 `period_end` 的下一秒，`end` = 今天 08:00（若 `start` 已晚于今天 08:00 则顺延至当前时间）；无发放记录时 `source=default`，回落到「今天-1天 08:00 ～ 今天 08:00」 |
 | POST | `/salary/bind` | `{user_id, player_id\|null}`，把店员绑到一个玩家作为工资账户（写 `users.salary_player_id`）；`player_id` 为空即解绑 |
 | POST | `/salary/pay` | `{date_from, date_to, user_ids, note?}`，逐人 `add_deposit`（`apply_campaign=False`）并写 `salary_payments`；每人每「工资日」只允许一条未冲销记录（DB 唯一索引），重复发返回 400；整批同事务 |
+| GET | `/salary/records` | `page, page_size, status(all\|live\|voided), user_id, date_from, date_to`；按发薪批次倒序分页返回历史记录（含每批明细 `lines`、经办人 `paid_by`、撤销信息与当前筛选汇总 `summary`） |
 | POST | `/salary/void` | `{batch_id, note?}`，按批次逐笔退押金并置 `voided_at`；受退押金规则限制（余额不足或有赠金则失败），任一失败整批回滚 |
 
 工资日 = 区间开始日（`date_from` 的 `YYYY-MM-DD`）。仅门店管理员可用（`require_admin`），店员与超管返回 403。

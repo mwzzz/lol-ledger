@@ -225,7 +225,14 @@ function close() {
         <div class="foot-actions">
           <el-button v-if="lastBatchId" :loading="submitting" @click="voidLast">撤销这批</el-button>
           <el-button @click="close">关闭</el-button>
-          <el-button type="primary" :loading="submitting" @click="confirmPay">确认发放</el-button>
+          <el-button
+            type="primary"
+            :disabled="!selected.length"
+            :loading="submitting"
+            @click="confirmPay"
+          >
+            确认发放
+          </el-button>
         </div>
       </div>
     </template>

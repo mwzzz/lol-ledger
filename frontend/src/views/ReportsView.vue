@@ -2,7 +2,7 @@
   <div class="page">
     <div class="page-head">
       <span class="page-title">账本结算</span>
-      <span class="page-sub">押金场次流水明细 · 操作人分红结算</span>
+      <span class="page-sub">押金场次流水明细 · 店员发薪记录</span>
       <div class="spacer"></div>
       <div v-if="auth.isAdmin" class="pos-seg" role="tablist">
         <button
@@ -16,16 +16,16 @@
         <button
           type="button"
           class="pos-seg-btn"
-          :class="{ active: activeTab === 'dividend' }"
-          @click="onTabChange('dividend')"
+          :class="{ active: activeTab === 'salary' }"
+          @click="onTabChange('salary')"
         >
-          分红结算
+          发薪记录
         </button>
       </div>
     </div>
 
     <RecordsView v-if="activeTab === 'records'" embedded />
-    <DividendSettlementView v-else-if="auth.isAdmin" />
+    <SalaryRecordsView v-else-if="auth.isAdmin" />
   </div>
 </template>
 
@@ -34,15 +34,15 @@ import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
-import DividendSettlementView from '@/views/DividendSettlementView.vue'
 import RecordsView from '@/views/RecordsView.vue'
+import SalaryRecordsView from '@/views/SalaryRecordsView.vue'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
 function validTabs(): string[] {
-  return auth.isAdmin ? ['records', 'dividend'] : ['records']
+  return auth.isAdmin ? ['records', 'salary'] : ['records']
 }
 
 function queryTab(): string {

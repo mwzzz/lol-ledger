@@ -118,10 +118,24 @@
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item v-if="!auth.isSuperadmin" command="settings">店铺设置</el-dropdown-item>
-            <el-dropdown-item command="theme">
-              {{ app.theme === 'dark' ? '切换到亮色' : '切换到暗色' }}
-            </el-dropdown-item>
             <el-dropdown-item command="changelog">更新日志</el-dropdown-item>
+            <el-dropdown-item
+              v-for="(item, idx) in THEMES"
+              :key="item.id"
+              :command="`theme:${item.id}`"
+              :divided="idx === 0"
+            >
+              <span class="m-theme-item">
+                <span
+                  class="m-theme-swatch"
+                  :style="{
+                    background: `linear-gradient(135deg, ${item.swatchBg} 50%, ${item.swatchAccent} 50%)`,
+                  }"
+                ></span>
+                <span>{{ item.label }}</span>
+                <span v-if="app.theme === item.id" class="m-theme-active">✓</span>
+              </span>
+            </el-dropdown-item>
             <el-dropdown-item command="password" divided>修改密码</el-dropdown-item>
             <el-dropdown-item command="logout">退出登录</el-dropdown-item>
           </el-dropdown-menu>
@@ -141,6 +155,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useSessionDraftStore } from '@/stores/sessionDraft'
 import { formatClock } from '@/utils/datetime'
 import { formatCents } from '@/utils/money'
+import { THEMES, type ThemeId } from '@/utils/themes'
 
 const router = useRouter()
 const route = useRoute()
@@ -167,7 +182,7 @@ function triggerGroup() {
 
 async function onMobileCommand(cmd: string) {
   if (cmd === 'settings') router.push({ name: 'settings' })
-  else if (cmd === 'theme') app.toggleTheme()
+  else if (cmd.startsWith('theme:')) app.setTheme(cmd.slice(6) as ThemeId)
   else if (cmd === 'changelog') app.changelogVisible = true
   else if (cmd === 'password') app.passwordDialogVisible = true
   else if (cmd === 'logout') {
@@ -208,8 +223,8 @@ async function onMobileCommand(cmd: string) {
   height: 26px;
   border: none;
   border-radius: 7px;
-  background: var(--app-primary);
-  color: #ffffff;
+  background: var(--app-brand-gradient);
+  color: var(--app-on-primary);
   font-weight: 800;
   font-size: 13px;
   cursor: pointer;
@@ -328,7 +343,7 @@ async function onMobileCommand(cmd: string) {
   padding: 0 5px;
   border-radius: 999px;
   background: var(--app-primary);
-  color: #fff;
+  color: var(--app-on-primary);
   font-size: 11px;
   line-height: 16px;
 }
@@ -436,6 +451,27 @@ async function onMobileCommand(cmd: string) {
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.m-theme-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.m-theme-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--app-border-strong);
+  flex: none;
+}
+
+.m-theme-active {
+  margin-left: auto;
+  color: var(--app-primary);
+  font-weight: 700;
 }
 
 @media (max-width: 768px) {

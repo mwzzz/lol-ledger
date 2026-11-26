@@ -1,17 +1,8 @@
 <template>
   <div class="login-wrap">
-    <button
-      type="button"
-      class="theme-switch"
-      :title="app.theme === 'dark' ? '切换亮色模式' : '切换暗色模式'"
-      @click="app.toggleTheme()"
-    >
-      <el-icon>
-        <Sunny v-if="app.theme === 'dark'" />
-        <Moon v-else />
-      </el-icon>
-      <span>{{ app.theme === 'dark' ? '亮色' : '暗色' }}</span>
-    </button>
+    <div class="theme-switch-pos">
+      <ThemePicker placement="bottom-end" />
+    </div>
 
     <div class="login-card">
       <div class="brand">
@@ -56,18 +47,17 @@
 </template>
 
 <script setup lang="ts">
-import { Lock, Moon, Sunny, User } from '@element-plus/icons-vue'
+import { Lock, User } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { useAppStore } from '@/stores/app'
+import ThemePicker from '@/components/common/ThemePicker.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const app = useAppStore()
 
 const username = ref('')
 const password = ref('')
@@ -105,28 +95,10 @@ async function submit() {
   padding: 24px;
 }
 
-.theme-switch {
+.theme-switch-pos {
   position: absolute;
   top: 20px;
   right: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 32px;
-  padding: 0 11px;
-  border-radius: 8px;
-  border: 1px solid var(--app-border);
-  background: var(--app-bg-panel);
-  color: var(--app-text-muted);
-  font: inherit;
-  font-size: 12.5px;
-  cursor: pointer;
-  transition: border-color 0.14s ease, color 0.14s ease;
-}
-
-.theme-switch:hover {
-  border-color: var(--app-border-strong);
-  color: var(--app-text-main);
 }
 
 .login-card {
@@ -149,8 +121,8 @@ async function submit() {
   width: 42px;
   height: 42px;
   border-radius: 11px;
-  background: linear-gradient(135deg, var(--app-primary), #2563eb);
-  color: #ffffff;
+  background: var(--app-brand-gradient);
+  color: var(--app-on-primary);
   font-size: 20px;
   font-weight: 800;
   display: grid;

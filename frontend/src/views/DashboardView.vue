@@ -325,17 +325,30 @@ const auth = useAuthStore()
 
 const MOMENT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/
 
-function initialRange(): [string, string] {
+function queryRange(): [string, string] | null {
   const from = typeof route.query.from === 'string' ? route.query.from : ''
   const to = typeof route.query.to === 'string' ? route.query.to : ''
   if (MOMENT_RE.test(from) && MOMENT_RE.test(to)) return [withSeconds(from), withSeconds(to)]
-  if (app.summaryRange) return [withSeconds(app.summaryRange[0]), withSeconds(app.summaryRange[1])]
-  return recentMorningRange(1)
+  return null
+}
+
+function initialRange(): { value: [string, string]; needAutoContinue: boolean } {
+  const fromUrl = queryRange()
+  if (fromUrl) return { value: fromUrl, needAutoContinue: false }
+  const todaySaved = app.getTodaySummaryRange()
+  if (todaySaved) {
+    return {
+      value: [withSeconds(todaySaved[0]), withSeconds(todaySaved[1])],
+      needAutoContinue: false,
+    }
+  }
+  return { value: recentMorningRange(1), needAutoContinue: true }
 }
 
 const shortcuts = momentShortcuts()
 const day = todayText()
-const range = ref<[string, string]>(initialRange())
+const init = initialRange()
+const range = ref<[string, string]>(init.value)
 
 const overview = ref<OverviewPayload | null>(null)
 const data = ref<OperatorSummary>({
@@ -380,12 +393,11 @@ async function loadOverview() {
 }
 
 async function loadSummary() {
+  reportVisible.value = false
+  reportText.value = ''
   const [from, to] = range.value || [day, day]
   if (MOMENT_RE.test(from) && MOMENT_RE.test(to)) {
     app.setSummaryRange([from, to])
-    if (route.query.from !== from || route.query.to !== to) {
-      router.replace({ query: { ...route.query, from, to } })
-    }
   }
   const seq = ++loadSeq
   loading.value = true
@@ -569,6 +581,21 @@ async function copyReport() {
 }
 
 onMounted(async () => {
+  if (init.needAutoContinue && auth.isAdmin) {
+    await Promise.all([
+      loadOverview(),
+      (async () => {
+        try {
+          const w = await salaryApi.nextWindow()
+          range.value = [w.start, w.end]
+        } catch {
+          // 续接接口异常时回落默认区间
+        }
+        await loadSummary()
+      })(),
+    ])
+    return
+  }
   await loadAll()
 })
 

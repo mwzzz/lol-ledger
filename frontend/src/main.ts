@@ -11,9 +11,12 @@ import './styles/dark.css'
 
 import App from './App.vue'
 import router from './router'
+import { useAppStore } from './stores/app'
 
 const app = createApp(App)
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
+useAppStore(pinia).applyTheme()
 app.use(router)
 app.use(ElementPlus, { locale: zhCn })
 app.mount('#app')

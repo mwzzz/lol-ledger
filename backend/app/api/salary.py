@@ -1,4 +1,4 @@
-"""发工资接口：预览、绑定工资账户、批量发放、整批撤销。全部仅门店管理员可用。"""
+"""发工资接口：预览、绑定工资账户、批量发放、整批撤销、发放记录。全部仅门店管理员可用。"""
 
 from __future__ import annotations
 
@@ -47,6 +47,29 @@ def pay(
 ) -> dict:
     return salary_service.pay(
         session, actor, payload.date_from, payload.date_to, payload.user_ids, payload.note
+    )
+
+
+@router.get("/records")
+def records(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=200),
+    status: str = Query(default="all", pattern="^(all|live|voided)$"),
+    user_id: int | None = Query(default=None, ge=1),
+    date_from: str | None = Query(default=None, max_length=25),
+    date_to: str | None = Query(default=None, max_length=25),
+    actor: Actor = Depends(require_admin),
+    session: Session = Depends(get_read_db),
+) -> dict:
+    return salary_service.list_records(
+        session,
+        actor.merchant_id,
+        page=page,
+        page_size=page_size,
+        status=status,
+        user_id=user_id,
+        date_from=date_from,
+        date_to=date_to,
     )
 
 

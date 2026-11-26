@@ -4,8 +4,6 @@ import type {
   AiRecognizePayload,
   AiStatus,
   AuthUser,
-  DividendPreview,
-  DividendSettlementRow,
   LedgerEntryRow,
   MerchantPurgePreview,
   MerchantPurgeResult,
@@ -27,6 +25,7 @@ import type {
   SalaryPreview,
   SalaryPayResult,
   SalaryNextWindow,
+  SalaryRecordsPayload,
   SessionRow,
   SettingsPayload,
   ToolItemRow,
@@ -158,6 +157,8 @@ export const salaryApi = {
     http
       .post('/salary/void', { batch_id, note })
       .then((res) => res.data as { batch_id: string; total_cents: number }),
+  records: (params: Query = {}) =>
+    http.get('/salary/records', { params }).then((res) => res.data as SalaryRecordsPayload),
 }
 
 export const sessionApi = {
@@ -187,30 +188,6 @@ export const recordApi = {
     http
       .get('/records/operator-summary', { params })
       .then((res) => res.data as OperatorCashSummary),
-}
-
-export const dividendApi = {
-  preview: (date_from?: string, date_to?: string) =>
-    http
-      .get('/reports/dividends/preview', { params: { date_from, date_to } })
-      .then((res) => res.data as DividendPreview),
-  settle: (payload: {
-    user_ids: number[]
-    date_from?: string
-    date_to?: string
-    note?: string
-  }) =>
-    http
-      .post('/reports/dividends/settle', payload)
-      .then((res) => res.data as DividendSettlementRow[]),
-  settlements: (page = 1, page_size = 10, status?: 'all' | 'live' | 'voided') =>
-    http
-      .get('/reports/dividends/settlements', { params: { page, page_size, status } })
-      .then((res) => res.data as Paged<DividendSettlementRow>),
-  voidSettlement: (id: number, note: string) =>
-    http
-      .post(`/reports/dividends/settlements/${id}/void`, { note })
-      .then((res) => res.data as DividendSettlementRow),
 }
 
 export const overviewApi = {

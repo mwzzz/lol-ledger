@@ -179,54 +179,7 @@ export interface AiStatus {
   model: string
 }
 
-export interface DividendTotals {
-  session_count: number
-  player_times: number
-  tea_cents: number
-  dividend_cents: number
-}
-
 export type DividendMode = 'percent' | 'fixed'
-
-export interface DividendPreviewItem {
-  user: UserBrief | null
-  is_active: boolean
-  pending: DividendTotals
-  settled: DividendTotals
-  status: 'pending' | 'settled' | 'empty'
-  dividend_mode: DividendMode | 'mixed' | null
-}
-
-export interface DividendPreview {
-  period: { start: string; end: string }
-  items: DividendPreviewItem[]
-  totals: {
-    pending_dividend_cents: number
-    pending_tea_cents: number
-    operator_count: number
-    session_count: number
-    claimed_session_count: number
-  }
-  warnings: string[]
-}
-
-export interface DividendSettlementRow {
-  id: number
-  user: UserBrief
-  period: { start: string; end: string }
-  session_count: number
-  player_times: number
-  tea_cents: number
-  dividend_cents: number
-  note: string
-  settled_by: UserBrief | null
-  created_at: string
-  status: 'live' | 'voided'
-  voided_at: string | null
-  voided_by: UserBrief | null
-  void_note: string
-  claimed_session_count: number
-}
 
 export interface LedgerEntryRow {
   id: number
@@ -346,6 +299,42 @@ export interface SalaryPayResult {
     ledger_entry_id: number
   }[]
   total_cents: number
+}
+
+export interface SalaryRecordLine {
+  id: number
+  user: UserBrief | null
+  player: { id: number; game_id: string }
+  amount_cents: number
+  ledger_entry_id: number | null
+}
+
+export interface SalaryRecordBatch {
+  batch_id: string
+  wage_date: string
+  period_start: string
+  period_end: string
+  created_at: string
+  note: string
+  status: 'live' | 'voided'
+  total_cents: number
+  people_count: number
+  paid_by: UserBrief | null
+  voided_at: string | null
+  voided_by: UserBrief | null
+  lines: SalaryRecordLine[]
+}
+
+export interface SalaryRecordsSummary {
+  live_total_cents: number
+  live_batch_count: number
+  live_payment_count: number
+  voided_total_cents: number
+  voided_payment_count: number
+}
+
+export interface SalaryRecordsPayload extends Paged<SalaryRecordBatch> {
+  summary: SalaryRecordsSummary
 }
 
 export interface OperatorOption {
