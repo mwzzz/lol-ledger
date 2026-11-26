@@ -3,7 +3,7 @@
     <button
       type="button"
       class="rail-brand"
-      :title="auth.isSuperadmin ? 'LOL 平台管理' : 'LOL 收银工作台'"
+      :title="auth.isSuperadmin ? 'LOL 平台管理' : 'LOL 玩家库'"
       @click="router.push(auth.isSuperadmin ? '/platform' : '/')"
     >
       <span class="rail-mark">L</span>
@@ -20,12 +20,6 @@
       >
         <span class="rail-icon-wrap">
           <el-icon><component :is="item.icon" /></el-icon>
-          <span
-            v-if="item.name === 'pos' && draft.filledCount > 0"
-            class="rail-badge"
-          >
-            {{ draft.filledCount }}
-          </span>
         </span>
         <span class="rail-label">{{ item.label }}</span>
       </button>
@@ -85,9 +79,9 @@ import {
   DataAnalysis,
   MagicStick,
   Memo,
-  Monitor,
   Setting,
   TrendCharts,
+  User,
 } from '@element-plus/icons-vue'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -95,19 +89,17 @@ import { useRoute, useRouter } from 'vue-router'
 import ThemePicker from '@/components/common/ThemePicker.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
-import { useSessionDraftStore } from '@/stores/sessionDraft'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const app = useAppStore()
-const draft = useSessionDraftStore()
 
 const navs = computed(() =>
   auth.isSuperadmin
     ? [{ name: 'platform', label: '平台', icon: Setting }]
     : [
-        { name: 'pos', label: '收银台', icon: Monitor },
+        { name: 'pos', label: '玩家库', icon: User },
         { name: 'dashboard', label: '看板', icon: DataAnalysis },
         { name: 'reports', label: '账本', icon: TrendCharts },
         { name: 'tools', label: '工具', icon: MagicStick },
@@ -133,7 +125,6 @@ async function onUserCommand(command: string) {
     return
   }
   if (command === 'logout') {
-    draft.resetAll()
     await auth.logout()
     router.replace({ name: 'login' })
   }

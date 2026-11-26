@@ -56,7 +56,7 @@
             {{ overview.low_deposit_count || 0 }} 人
           </b>
           <small class="kpi-sub">
-            低于 ¥{{ formatCents(overview.deposit_low_cents || 3000) }}，点此直达收银台催补 →
+            低于 ¥{{ formatCents(overview.deposit_low_cents || 3000) }}，点此直达玩家库催补 →
           </small>
         </div>
       </div>

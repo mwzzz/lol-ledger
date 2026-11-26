@@ -10,7 +10,7 @@
       </button>
 
       <span v-if="auth.isSuperadmin" class="shop-pill dev">开发者平台</span>
-      <span v-else class="shop-pill">{{ auth.merchantName || '本店收银台' }}</span>
+      <span v-else class="shop-pill">{{ auth.merchantName || '本店玩家库' }}</span>
 
       <template v-if="!auth.isSuperadmin">
         <span class="ph-divider desktop-only"></span>
@@ -46,12 +46,19 @@
           <kbd class="pos-kbd">/</kbd>
           <span>搜玩家</span>
         </button>
-        <button v-if="route.name !== 'pos'" type="button" class="hint-chip primary" @click="triggerGroup">
-          <kbd class="pos-kbd">N</kbd>
-          <span>去组局</span>
-          <span v-if="draft.filledCount > 0" class="chip-count">{{ draft.filledCount }}</span>
-        </button>
       </div>
+
+      <el-button
+        v-if="!auth.isSuperadmin"
+        type="primary"
+        size="small"
+        :icon="VideoPlay"
+        class="open-session-btn"
+        title="开一局（快捷键 N）"
+        @click="app.openSessionDialog()"
+      >
+        开一局
+      </el-button>
 
       <div v-if="!auth.isSuperadmin" class="shift-zone">
         <template v-if="!app.clockedIn">
@@ -146,13 +153,12 @@
 </template>
 
 <script setup lang="ts">
-import { AlarmClock, Refresh } from '@element-plus/icons-vue'
+import { AlarmClock, Refresh, VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
-import { useSessionDraftStore } from '@/stores/sessionDraft'
 import { formatClock } from '@/utils/datetime'
 import { formatCents } from '@/utils/money'
 import { THEMES, type ThemeId } from '@/utils/themes'
@@ -161,7 +167,6 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const app = useAppStore()
-const draft = useSessionDraftStore()
 
 function onClockIn() {
   app.clockIn()
@@ -176,17 +181,12 @@ function triggerSearch() {
   }
 }
 
-function triggerGroup() {
-  void router.push({ name: 'pos' }).then(() => app.requestFocusDock())
-}
-
 async function onMobileCommand(cmd: string) {
   if (cmd === 'settings') router.push({ name: 'settings' })
   else if (cmd.startsWith('theme:')) app.setTheme(cmd.slice(6) as ThemeId)
   else if (cmd === 'changelog') app.changelogVisible = true
   else if (cmd === 'password') app.passwordDialogVisible = true
   else if (cmd === 'logout') {
-    draft.resetAll()
     await auth.logout()
     router.replace({ name: 'login' })
   }
@@ -332,20 +332,12 @@ async function onMobileCommand(cmd: string) {
   color: var(--app-text-main);
 }
 
-.hint-chip.primary {
-  border-color: var(--app-primary-ring);
-  background: var(--app-primary-soft);
-  color: var(--app-primary);
+.open-session-btn {
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 7px;
   font-weight: 600;
-}
-
-.chip-count {
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--app-primary);
-  color: var(--app-on-primary);
-  font-size: 11px;
-  line-height: 16px;
+  flex: none;
 }
 
 .shift-zone {

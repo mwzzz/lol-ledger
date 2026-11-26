@@ -1,11 +1,11 @@
 <template>
   <div class="pos-workbench">
-    <!-- 左栏：玩家检索与收银主工作区 -->
+    <!-- 玩家库主工作区 -->
     <div class="pos-main-pane">
-      <!-- 顶部收银操作头 -->
+      <!-- 顶部标题与批量操作 -->
       <div class="wb-head">
         <div class="wb-title-group">
-          <h1 class="wb-title">收银台</h1>
+          <h1 class="wb-title">玩家库</h1>
           <div class="wb-metrics">
             <span>玩家 <b>{{ total }}</b></span>
             <span class="sep">·</span>
@@ -25,16 +25,6 @@
           <el-button size="small" type="primary" :icon="Plus" @click="openCreate">
             新增玩家
           </el-button>
-          <button
-            v-if="!app.dockOpen"
-            type="button"
-            class="expand-dock-btn desktop-wide-only"
-            @click="app.toggleDock(true)"
-          >
-            <el-icon><DArrowLeft /></el-icon>
-            <span>展开组局台</span>
-            <span class="ed-count">{{ draft.filledCount }}/10</span>
-          </button>
         </div>
       </div>
 
@@ -96,15 +86,14 @@
         </span>
       </div>
 
-      <!-- 桌面端：高密度定制收银列表（去后台表格感） -->
+      <!-- 桌面端：高密度定制玩家列表 -->
       <div v-loading="loading" class="pos-list-panel panel desktop-only">
         <div class="pl-header">
-          <span class="col-board">上车</span>
           <span class="col-player">玩家 / 备注</span>
           <span class="col-balance">账户余额</span>
           <span class="col-games">局数</span>
           <span class="col-active">最近活跃</span>
-          <span class="col-ops">收银操作</span>
+          <span class="col-ops">押金操作</span>
         </div>
 
         <div v-if="rows.length" class="pl-body">
@@ -112,37 +101,9 @@
             v-for="row in rows"
             :key="row.id"
             class="pl-row"
-            :class="{
-              'in-cart': draft.slotIndexOf(row.id) >= 0,
-              'is-black': row.is_blacklisted,
-            }"
+            :class="{ 'is-black': row.is_blacklisted }"
             @dblclick="openLedger(row)"
           >
-            <!-- 上车列 -->
-            <div class="col-board">
-              <span v-if="row.is_blacklisted" class="board-disabled">拉黑</span>
-              <span v-else-if="isTeaFree(row.game_id)" class="board-free" title="免茶水名单，开局不扣茶水">
-                免茶
-              </span>
-              <button
-                v-else-if="draft.slotIndexOf(row.id) >= 0"
-                type="button"
-                class="board-btn active"
-                title="点击从当前组局移出"
-                @click="draft.togglePlayer(row.id)"
-              >
-                #{{ draft.slotIndexOf(row.id) + 1 }} 在局
-              </button>
-              <button
-                v-else
-                type="button"
-                class="board-btn"
-                @click="draft.togglePlayer(row.id)"
-              >
-                + 上车
-              </button>
-            </div>
-
             <!-- 玩家信息列 -->
             <div class="col-player">
               <div class="p-primary">
@@ -277,15 +238,6 @@
             />
           </div>
           <div class="mc-actions" @click.stop>
-            <button
-              v-if="!row.is_blacklisted && !isTeaFree(row.game_id)"
-              type="button"
-              class="cash-btn"
-              :class="{ 'in-slot': draft.slotIndexOf(row.id) >= 0 }"
-              @click="draft.togglePlayer(row.id)"
-            >
-              {{ draft.slotIndexOf(row.id) >= 0 ? `#${draft.slotIndexOf(row.id) + 1} 在局` : '+ 上车' }}
-            </button>
             <button type="button" class="cash-btn add" @click="openDeposit(row, 'add')">+ 加押</button>
             <button type="button" class="cash-btn refund" @click="openDeposit(row, 'refund')">退押</button>
             <button type="button" class="cash-btn" @click="openTransfer(row)">划押</button>
@@ -329,39 +281,6 @@
       </div>
     </div>
 
-    <!-- 右栏（宽屏常驻）：10 人组局台 -->
-    <aside v-if="app.dockOpen" class="pos-dock-pane desktop-wide-only">
-      <SessionDock
-        @collapse="app.toggleDock(false)"
-        @quick-deposit="openQuickDepositById"
-      />
-    </aside>
-
-    <!-- 窄屏 / 移动端：底部悬浮组局胶囊条 + 抽屉 -->
-    <div class="compact-dock-bar">
-      <button type="button" class="cdb-main" @click="app.mobileDockVisible = true">
-        <span class="cdb-badge">{{ draft.filledCount }}/10</span>
-        <span class="cdb-label">
-          {{ draft.filledCount > 0 ? `当前组局 · 茶水 ¥${formatCents(draft.teaTotalCents)}` : '打开组局台（开一局）' }}
-        </span>
-        <span class="cdb-go">展开 ↑</span>
-      </button>
-    </div>
-
-    <el-drawer
-      v-model="app.mobileDockVisible"
-      direction="rtl"
-      size="min(400px, 94vw)"
-      :with-header="false"
-      class="dock-drawer"
-    >
-      <SessionDock
-        embedded
-        @quick-deposit="openQuickDepositById"
-        @submitted="app.mobileDockVisible = false"
-      />
-    </el-drawer>
-
     <!-- 业务弹窗与流水抽屉 -->
     <PlayerFormDialog v-model="formVisible" :player="editing" @saved="onSaved" />
     <PlayerImportDialog v-model="importVisible" @saved="onSaved" />
@@ -383,7 +302,6 @@
 
 <script setup lang="ts">
 import {
-  DArrowLeft,
   Download,
   MoreFilled,
   Plus,
@@ -395,7 +313,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { moneyApi, overviewApi, playerApi } from '@/api'
+import { moneyApi, overviewApi, playerApi, settingsApi } from '@/api'
 import type { PlayerRow } from '@/api/types'
 import DepositBadge from '@/components/common/DepositBadge.vue'
 import DepositDialog from '@/components/players/DepositDialog.vue'
@@ -403,17 +321,13 @@ import PlayerFormDialog from '@/components/players/PlayerFormDialog.vue'
 import PlayerImportDialog from '@/components/players/PlayerImportDialog.vue'
 import PlayerLedgerDrawer from '@/components/players/PlayerLedgerDrawer.vue'
 import TransferDialog from '@/components/players/TransferDialog.vue'
-import SessionDock from '@/components/pos/SessionDock.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
-import { useSessionDraftStore } from '@/stores/sessionDraft'
 import { formatFull, relative } from '@/utils/datetime'
 import { formatCents } from '@/utils/money'
-import { nameKey } from '@/utils/names'
 
 const app = useAppStore()
 const auth = useAuthStore()
-const draft = useSessionDraftStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -448,6 +362,7 @@ const totalDeposit = ref(0)
 const totalBonus = ref(0)
 const lowCents = ref(3000)
 const highCents = ref(6000)
+const lastTeaCents = ref(200)
 
 const formVisible = ref(false)
 const importVisible = ref(false)
@@ -459,11 +374,7 @@ const editing = ref<PlayerRow | null>(null)
 const active = ref<PlayerRow | null>(null)
 const depositMode = ref<'add' | 'refund' | 'bonus'>('add')
 
-const defaultTransferCents = computed(() => draft.teaCents * 10)
-
-function isTeaFree(gameId: string): boolean {
-  return draft.teaFreeKeys.includes(nameKey(gameId))
-}
+const defaultTransferCents = computed(() => lastTeaCents.value * 10)
 
 function selectLevel(next: LevelFilter) {
   if (level.value === next) return
@@ -514,6 +425,17 @@ async function loadSummary() {
   }
 }
 
+async function loadTeaCents() {
+  try {
+    const settings = await settingsApi.get()
+    if (Number.isFinite(settings.last_tea_cents)) {
+      lastTeaCents.value = settings.last_tea_cents
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function reload() {
   page.value = 1
   void load()
@@ -554,20 +476,6 @@ function openDeposit(row: PlayerRow, mode: 'add' | 'refund' | 'bonus') {
   depositVisible.value = true
 }
 
-async function openQuickDepositById(playerId: number) {
-  const existing = rows.value.find((r) => r.id === playerId)
-  if (existing) {
-    openDeposit(existing, 'add')
-    return
-  }
-  try {
-    const fetched = await playerApi.get(playerId)
-    openDeposit(fetched, 'add')
-  } catch {
-    ElMessage.warning('未能读取该玩家信息')
-  }
-}
-
 function openTransfer(row: PlayerRow) {
   active.value = row
   transferVisible.value = true
@@ -591,7 +499,6 @@ function syncAllStats() {
   void loadSummary()
   void app.refreshToday()
   void app.refreshMyShift()
-  draft.refreshPreviewIfNeeded()
 }
 
 function onSaved() {
@@ -625,9 +532,6 @@ async function toggleBlacklist(row: PlayerRow) {
     return
   }
   await playerApi.update(row.id, { is_blacklisted: next })
-  if (next && draft.slotIndexOf(row.id) >= 0) {
-    draft.togglePlayer(row.id)
-  }
   ElMessage.success(next ? '已加入黑名单' : '已移出黑名单')
   reload()
 }
@@ -671,9 +575,6 @@ async function remove(row: PlayerRow) {
     return
   }
   await playerApi.remove(row.id)
-  if (draft.slotIndexOf(row.id) >= 0) {
-    draft.togglePlayer(row.id)
-  }
   ElMessage.success('已删除')
   reload()
   void loadSummary()
@@ -741,7 +642,7 @@ watch(
 )
 
 onMounted(async () => {
-  await Promise.all([load(), loadSummary(), draft.loadMeta()])
+  await Promise.all([load(), loadSummary(), loadTeaCents()])
   handleQueryAction()
 })
 </script>
@@ -750,25 +651,17 @@ onMounted(async () => {
 .pos-workbench {
   flex: 1;
   display: flex;
-  align-items: stretch;
+  justify-content: center;
   min-height: calc(100vh - 42px);
 }
 
 .pos-main-pane {
-  flex: 1;
+  width: 100%;
+  max-width: 1440px;
   min-width: 0;
-  padding: 16px 20px 36px;
+  padding: 20px 24px 48px;
   display: flex;
   flex-direction: column;
-}
-
-.pos-dock-pane {
-  width: 382px;
-  flex: none;
-  border-left: 1px solid var(--app-border);
-  position: sticky;
-  top: 42px;
-  height: calc(100vh - 42px);
 }
 
 .wb-head {
@@ -821,31 +714,6 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-.expand-dock-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 11px;
-  border-radius: var(--app-radius-sm);
-  border: 1px solid var(--app-primary-ring);
-  background: var(--app-primary-soft);
-  color: var(--app-primary);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.ed-count {
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--app-primary);
-  color: var(--app-on-primary);
-  font-size: 11px;
-  line-height: 16px;
 }
 
 .wb-filters {
@@ -938,10 +806,10 @@ onMounted(async () => {
 .pl-header,
 .pl-row {
   display: grid;
-  grid-template-columns: 82px minmax(180px, 1fr) 176px 64px 96px 218px;
+  grid-template-columns: minmax(220px, 1fr) 186px 76px 104px 228px;
   align-items: center;
-  gap: 10px;
-  padding: 0 14px;
+  gap: 12px;
+  padding: 0 16px;
 }
 
 .pl-header {
@@ -975,58 +843,8 @@ onMounted(async () => {
   background: var(--app-bg-hover);
 }
 
-.pl-row.in-cart {
-  background: var(--app-primary-soft);
-}
-
 .pl-row.is-black {
   opacity: 0.68;
-}
-
-.board-btn {
-  height: 26px;
-  padding: 0 9px;
-  border-radius: 6px;
-  border: 1px solid var(--app-border-strong);
-  background: var(--app-bg-subtle);
-  color: var(--app-text-main);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.14s ease;
-}
-
-.board-btn:hover {
-  border-color: var(--app-primary);
-  color: var(--app-primary);
-  background: var(--app-primary-soft);
-}
-
-.board-btn.active {
-  border-color: var(--app-primary);
-  background: var(--app-primary);
-  color: var(--app-on-primary);
-  font-variant-numeric: tabular-nums;
-}
-
-.board-btn.active:hover {
-  background: var(--el-color-danger);
-  border-color: var(--el-color-danger);
-  color: #ffffff;
-}
-
-.board-disabled,
-.board-free {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: 5px;
-  font-size: 11px;
-  background: var(--app-bg-subtle);
-  color: var(--app-text-faint);
 }
 
 .col-player {
@@ -1137,12 +955,6 @@ onMounted(async () => {
   color: var(--el-color-warning);
 }
 
-.cash-btn.in-slot {
-  background: var(--app-primary);
-  border-color: var(--app-primary);
-  color: var(--app-on-primary);
-}
-
 .cash-btn.more {
   width: 26px;
   padding: 0;
@@ -1158,78 +970,14 @@ onMounted(async () => {
   background: var(--app-bg-panel);
 }
 
-/* 窄屏与移动端组局悬浮条 */
-.compact-dock-bar {
-  display: none;
-}
-
-.dock-drawer :deep(.el-drawer__body) {
-  padding: 0;
-}
-
-@media (max-width: 1120px) {
-  .desktop-wide-only {
-    display: none !important;
-  }
-
-  .compact-dock-bar {
-    display: block;
-    position: fixed;
-    right: 20px;
-    bottom: 20px;
-    z-index: 28;
-  }
-
-  .cdb-main {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    height: 42px;
-    padding: 0 16px;
-    border: none;
-    border-radius: 999px;
-    background: var(--app-primary);
-    color: var(--app-on-primary);
-    box-shadow: 0 8px 24px var(--app-primary-ring);
-    font: inherit;
-    font-size: 13px;
-    font-weight: 650;
-    cursor: pointer;
-  }
-
-  .cdb-badge {
-    padding: 1px 7px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.22);
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .cdb-go {
-    opacity: 0.88;
-    font-size: 12px;
-  }
-}
-
 @media (max-width: 768px) {
   .pos-main-pane {
-    padding: 12px 12px 124px;
+    padding: 12px 12px 24px;
   }
 
   .pos-search-box {
     flex: 1 1 100%;
     width: 100%;
-  }
-
-  .compact-dock-bar {
-    left: 12px;
-    right: 12px;
-    bottom: 68px;
-  }
-
-  .cdb-main {
-    width: 100%;
-    justify-content: space-between;
   }
 
   .m-card {

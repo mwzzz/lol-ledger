@@ -10,9 +10,6 @@
     >
       <span class="icon-wrap">
         <el-icon><component :is="item.icon" /></el-icon>
-        <span v-if="item.name === 'pos' && draft.filledCount > 0" class="nav-badge">
-          {{ draft.filledCount }}
-        </span>
       </span>
       <span>{{ item.label }}</span>
     </button>
@@ -20,19 +17,17 @@
 </template>
 
 <script setup lang="ts">
-import { DataAnalysis, MagicStick, Monitor, TrendCharts } from '@element-plus/icons-vue'
+import { DataAnalysis, MagicStick, TrendCharts, User } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
-import { useSessionDraftStore } from '@/stores/sessionDraft'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const draft = useSessionDraftStore()
 
 const items = [
-  { name: 'pos', label: '收银台', icon: Monitor },
+  { name: 'pos', label: '玩家库', icon: User },
   { name: 'dashboard', label: '看板', icon: DataAnalysis },
   { name: 'reports', label: '账本', icon: TrendCharts },
   { name: 'tools', label: '小工具', icon: MagicStick },

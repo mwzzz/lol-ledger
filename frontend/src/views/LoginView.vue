@@ -8,8 +8,8 @@
       <div class="brand">
         <span class="brand-mark">L</span>
         <div>
-          <div class="brand-title">LOL 门店收银台</div>
-          <div class="brand-sub">快速收退押金 · 5v5 组局扣费 · 经营对账</div>
+          <div class="brand-title">LOL 记录管理</div>
+          <div class="brand-sub">快速收退押金 · 玩家库开局扣费 · 经营对账</div>
         </div>
       </div>
 
@@ -37,7 +37,7 @@
           />
         </el-form-item>
         <el-button class="submit" type="primary" size="large" :loading="loading" @click="submit">
-          进入收银台
+          登录进入
         </el-button>
       </el-form>
 

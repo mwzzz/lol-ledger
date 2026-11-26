@@ -8,7 +8,6 @@ import { getThemeMeta, normalizeTheme, THEMES, type ThemeId } from '@/utils/them
 
 const THEME_KEY = 'lol_theme'
 const SUMMARY_RANGE_KEY = 'lol_summary_range'
-const DOCK_OPEN_KEY = 'lol_pos_dock_open'
 
 const MOMENT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/
 const MINUTE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/
@@ -57,12 +56,9 @@ export const useAppStore = defineStore('app', {
     theme: normalizeTheme(localStorage.getItem(THEME_KEY)) as ThemeId,
     summaryRange: (initialStoredSummaryRange?.range ?? null) as [string, string] | null,
     summaryRangeDay: (initialStoredSummaryRange?.savedDay ?? null) as string | null,
-    dockOpen: localStorage.getItem(DOCK_OPEN_KEY) !== '0',
-    mobileDockVisible: false,
     changelogVisible: false,
     passwordDialogVisible: false,
     posFocusSearchTick: 0,
-    posFocusDockTick: 0,
     today: null as SummaryTotals | null,
     todayLoaded: false,
     todayLoading: false,
@@ -97,20 +93,8 @@ export const useAppStore = defineStore('app', {
       const next = THEMES[(idx + 1) % THEMES.length]
       this.setTheme(next.id)
     },
-    toggleDock(force?: boolean) {
-      this.dockOpen = typeof force === 'boolean' ? force : !this.dockOpen
-      try {
-        localStorage.setItem(DOCK_OPEN_KEY, this.dockOpen ? '1' : '0')
-      } catch {
-        // ignore storage quota errors
-      }
-    },
     requestFocusSearch() {
       this.posFocusSearchTick += 1
-    },
-    requestFocusDock() {
-      this.toggleDock(true)
-      this.posFocusDockTick += 1
     },
     openSessionDialog() {
       this.sessionDialogVisible = true

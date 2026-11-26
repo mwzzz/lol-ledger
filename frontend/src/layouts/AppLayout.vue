@@ -9,6 +9,13 @@
     </div>
     <BottomNav />
 
+    <!-- 全局开一局弹窗 -->
+    <NewSessionDialog
+      v-if="!auth.isSuperadmin"
+      v-model="app.sessionDialogVisible"
+      @created="app.notifySessionCreated()"
+    />
+
     <!-- 全局更新日志抽屉 -->
     <el-drawer v-model="app.changelogVisible" title="更新日志" size="min(440px, 92vw)">
       <div class="changelog">
@@ -66,19 +73,18 @@ import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { authApi } from '@/api'
+import NewSessionDialog from '@/components/batches/NewSessionDialog.vue'
 import { CHANGELOG } from '@/data/changelog'
 import BottomNav from '@/layouts/BottomNav.vue'
 import PosHeader from '@/layouts/PosHeader.vue'
 import SideRail from '@/layouts/SideRail.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
-import { useSessionDraftStore } from '@/stores/sessionDraft'
 
 const router = useRouter()
 const route = useRoute()
 const app = useAppStore()
 const auth = useAuthStore()
-const draft = useSessionDraftStore()
 
 const savingPwd = ref(false)
 const pwd = reactive({ old: '', next: '', confirm: '' })
@@ -108,7 +114,6 @@ async function submitPassword() {
     await authApi.changePassword(pwd.old, pwd.next)
     ElMessage.success('密码已修改，请重新登录')
     app.passwordDialogVisible = false
-    draft.resetAll()
     auth.reset()
     router.replace({ name: 'login' })
   } finally {
@@ -150,11 +155,7 @@ function onGlobalKeydown(event: KeyboardEvent) {
 
   if (event.key.toLowerCase() === 'n' && !event.ctrlKey && !event.metaKey && !event.altKey) {
     event.preventDefault()
-    if (route.name !== 'pos') {
-      void router.push({ name: 'pos' }).then(() => app.requestFocusDock())
-    } else {
-      app.requestFocusDock()
-    }
+    app.openSessionDialog()
   }
 }
 
@@ -164,7 +165,6 @@ onMounted(() => {
   if (!auth.isSuperadmin) {
     void app.refreshToday()
     void app.refreshMyShift()
-    void draft.loadMeta()
   }
 })
 
@@ -186,7 +186,6 @@ watch(
   () => {
     if (!auth.isSuperadmin && auth.user) {
       void app.refreshMyShift()
-      void draft.loadMeta(true)
     }
   },
 )
