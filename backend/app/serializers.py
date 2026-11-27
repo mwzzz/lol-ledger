@@ -130,6 +130,10 @@ def session_row(
         "operator": user_brief(session.operator),
         "creator": user_brief(session.operator),
         "created_at": session.created_at,
+        "voided": session.voided_at is not None,
+        "voided_at": session.voided_at,
+        "voided_by": user_brief(session.voider),
+        "void_note": session.void_note or "",
         "players": [session_player_row(item) for item in (players or [])],
     }
 

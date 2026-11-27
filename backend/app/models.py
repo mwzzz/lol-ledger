@@ -116,8 +116,16 @@ class GameSession(Base):
     operator_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     player_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[str] = mapped_column(String(40))
+    voided_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    voided_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    void_note: Mapped[str] = mapped_column(String(200), default="")
 
-    operator: Mapped[User | None] = relationship(User, lazy="joined")
+    operator: Mapped[User | None] = relationship(
+        User, foreign_keys=[operator_id], lazy="joined"
+    )
+    voider: Mapped[User | None] = relationship(
+        User, foreign_keys=[voided_by], lazy="joined"
+    )
 
 
 class SessionPlayer(Base):

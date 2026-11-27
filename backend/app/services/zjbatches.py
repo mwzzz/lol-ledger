@@ -23,7 +23,7 @@ from app.timeutil import now_cn, now_text, parse_text, to_text
 logger = logging.getLogger(__name__)
 
 PLAYER_PATTERN = re.compile(r"^[^#\r\n]{1,64}#\d{3,8}$")
-HARD_MAX_PLAYERS = 10
+HARD_MAX_PLAYERS = 15
 HARD_MAX_COUNT = 100
 
 

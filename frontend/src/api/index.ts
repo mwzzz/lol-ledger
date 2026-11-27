@@ -171,9 +171,9 @@ export const sessionApi = {
   create: (payload: Record<string, unknown>) =>
     http.post('/sessions', payload).then((res) => res.data as SessionRow),
   get: (id: number) => http.get(`/sessions/${id}`).then((res) => res.data as SessionRow),
-  void: (id: number) =>
+  void: (id: number, note = '') =>
     http
-      .post(`/sessions/${id}/void`, {})
+      .post(`/sessions/${id}/void`, { note })
       .then((res) => res.data as { voided: boolean; session_id: number; restored_player_count: number }),
 }
 

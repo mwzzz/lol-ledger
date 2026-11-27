@@ -72,6 +72,7 @@ def operator_summary(
         )
         .where(
             GameSession.merchant_id == merchant_id,
+            GameSession.voided_at.is_(None),
             GameSession.played_at >= start_text,
             GameSession.played_at <= end_text,
         )

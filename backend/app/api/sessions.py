@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.deps import Actor, client_ip, get_current_user, get_read_db, get_write_db
-from app.schemas import SessionCreateIn, SessionPreviewIn
+from app.schemas import SessionCreateIn, SessionPreviewIn, SessionVoidIn
 from app.services import sessions as session_service
 
 router = APIRouter(prefix="/sessions", tags=["场次"])
@@ -65,12 +65,17 @@ def get_session(
 def void_session(
     session_id: int,
     request: Request,
+    payload: SessionVoidIn | None = None,
     actor: Actor = Depends(get_current_user),
     session: Session = Depends(get_write_db),
 ) -> dict:
-    """撤销刚开的一局：删场次与茶水扣费流水、退回押金与局数；非本人且非管理员、已结算、或之后又操作过都会拒绝。"""
+    """撤回未发薪的一局：软标记场次已撤回，并写正向 session_void 流水把押金/赠金原路退回、局数 -1。"""
     return session_service.void_session(
-        session, actor, session_id, ip=client_ip(request)
+        session,
+        actor,
+        session_id,
+        note=payload.note if payload else "",
+        ip=client_ip(request),
     )
 
 

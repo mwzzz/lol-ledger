@@ -317,6 +317,16 @@ def _ddl_for(version: int) -> tuple[list[str], list[str]]:
             statement = re.sub(
                 r"^\s*salary_player_id[^\n]*\n", "", statement, flags=re.MULTILINE
             )
+        if version < 16 and "CREATE TABLE IF NOT EXISTS sessions" in statement:
+            statement = re.sub(
+                r"^\s*voided_(at|by)\s+[^\n]*\n", "", statement, flags=re.MULTILINE
+            )
+            statement = re.sub(
+                r"^\s*void_note[^\n]*\n", "", statement, flags=re.MULTILINE
+            )
+            statement = re.sub(r",(\s*\n\s*\))", r"\1", statement)
+        if version < 16 and "CREATE TABLE IF NOT EXISTS ledger" in statement:
+            statement = statement.replace(", 'session_void'", "")
         if version < 3:
             statement = re.sub(
                 r"^\s*is_system\s+INTEGER[^\n]*\n", "", statement, flags=re.MULTILINE
@@ -899,6 +909,90 @@ def test_upgrade_v13_claims_settled_sessions(tmp_path) -> None:
         finally:
             conn.close()
         assert len(list((tmp_path / "backups").glob("pre-v14-*.db"))) == 1
+    finally:
+        dbmod.dispose()
+
+
+def test_v15_to_v16_migration_preserves_ledger_and_enables_session_void(tmp_path) -> None:
+    path = tmp_path / "v15.db"
+    conn = sqlite3.connect(path)
+    try:
+        tables, indexes = _ddl_for(15)
+        for statement in (*tables, *indexes):
+            conn.execute(statement)
+        conn.execute("PRAGMA user_version = 15")
+        conn.execute(
+            "INSERT INTO merchants (name, note, status, created_at, updated_at)"
+            " VALUES ('老商家', '', 'active', ?, ?)",
+            (STAMP, STAMP),
+        )
+        conn.execute(
+            "INSERT INTO users (merchant_id, username, password_hash, display_name, role,"
+            " is_active, password_changed_at, created_at, updated_at)"
+            " VALUES (1, 'boss', 'x', '店长', 'admin', 1, ?, ?, ?)",
+            (STAMP, STAMP, STAMP),
+        )
+        conn.execute(
+            "INSERT INTO players (merchant_id, game_id, deposit_cents, bonus_cents,"
+            " games_played, creator_id, created_at, updated_at)"
+            " VALUES (1, '玩家甲', 700, 0, 1, 1, ?, ?)",
+            (STAMP, STAMP),
+        )
+        conn.execute(
+            "INSERT INTO sessions (merchant_id, name, played_at, tea_fee_cents, note,"
+            " operator_id, player_count, created_at)"
+            " VALUES (1, '第1局', ?, 300, '', 1, 1, ?)",
+            (STAMP, STAMP),
+        )
+        conn.execute(
+            "INSERT INTO ledger (id, merchant_id, player_id, session_id, reason,"
+            " amount_cents, balance_before_cents, balance_after_cents, bonus_amount_cents,"
+            " deposit_after_cents, bonus_after_cents, operator_id, note, created_at)"
+            " VALUES (10, 1, 1, NULL, 'add_deposit', 1000, 0, 1000, 0, 1000, 0, 1, '', ?),"
+            " (11, 1, 1, 1, 'normal_deduct', 300, 1000, 700, 0, 700, 0, 1, '', ?)",
+            (STAMP, STAMP),
+        )
+        conn.execute(
+            "INSERT INTO session_players (session_id, player_id, tea_fee_cents,"
+            " balance_before_cents, balance_after_cents, ledger_id)"
+            " VALUES (1, 1, 300, 1000, 700, 11)"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    dbmod.configure_db(path)
+    try:
+        dbmod.ensure_schema()
+        conn = sqlite3.connect(path)
+        try:
+            assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+            sess_cols = {
+                row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()
+            }
+            assert {"voided_at", "voided_by", "void_note"} <= sess_cols
+            # 原流水行与 ID 全部保留
+            assert conn.execute(
+                "SELECT id, reason, amount_cents FROM ledger ORDER BY id"
+            ).fetchall() == [(10, "add_deposit", 1000), (11, "normal_deduct", 300)]
+            # 新 CHECK 允许插入 session_void（含 0 分与赠金拆分）
+            conn.execute(
+                "INSERT INTO ledger (merchant_id, player_id, session_id, reason,"
+                " amount_cents, balance_before_cents, balance_after_cents, bonus_amount_cents,"
+                " deposit_after_cents, bonus_after_cents, reverses_ledger_id, operator_id,"
+                " note, created_at)"
+                " VALUES (1, 1, 1, 'session_void', 300, 700, 1000, 0, 1000, 0, 11, 1, '撤回', ?)",
+                (STAMP,),
+            )
+            conn.commit()
+            assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
+        finally:
+            conn.close()
+
+        assert len(list((tmp_path / "backups").glob("pre-v16-*.db"))) == 1
+        # 幂等：再跑一次不重复备份不报错
+        dbmod.ensure_schema()
+        assert len(list((tmp_path / "backups").glob("pre-v16-*.db"))) == 1
     finally:
         dbmod.dispose()
 

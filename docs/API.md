@@ -130,7 +130,7 @@ Authorization: Bearer <access_token>
 
 流水新增 `bonus_amount_cents`（本笔赠金抵扣额）、`deposit_after_cents`（变动后现金）、`bonus_after_cents`（变动后赠金）；`balance_after_cents` 为总余额。`reason` 取值集合含 `bonus_void`（撤销加赠金，赠金减少、现金不变），撤销流水用 `reverses_ledger_id` 指回被撤销的 `add_bonus` 行；`/records/deposits` 与玩家流水里的 `add_bonus` 行会带 `voided`（是否已被撤销）。
 
-流水 `reason` 取值：`add_deposit`、`add_bonus`、`bonus_void`、`normal_deduct`、`refund`、`transfer_out`、`transfer_in`。
+流水 `reason` 取值：`add_deposit`、`add_bonus`、`bonus_void`、`normal_deduct`、`session_void`、`refund`、`transfer_out`、`transfer_in`。
 
 返回 `{entry, player}`；加押金命中活动时还返回 `bonus_entry` 和 `campaign`。`entry.reason_label` 已经拼好中文（划转带对手名和箭头）。
 
@@ -138,11 +138,11 @@ Authorization: Bearer <access_token>
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/sessions` | `keyword, date_from, date_to, page, page_size`；每行返回 `voidable`（当前登录人能否撤回这局） |
+| GET | `/sessions` | `keyword, date_from, date_to, page, page_size`；仅返回未撤回场次，每行带 `voidable`、`void_block_reason` |
 | POST | `/sessions/preview` | `{player_ids, tea_fee_cents}` → 每人扣前/扣后/是否变负 |
 | POST | `/sessions` | `{name?, played_at?, note?, tea_fee_cents, player_ids}` |
-| GET | `/sessions/{id}` | 场次详情，含每人扣费；同样带 `voidable` |
-| POST | `/sessions/{id}/void` | 撤回刚开的一局（开这局的本人或门店管理员）。删除该场、其 `session_players` 与 `normal_deduct` 流水，退回每人押金/赠金并局数 −1；不产生任何加押/退押记录（不影响差额）。护栏：该场从未被任何分红结算认领、且这局的扣费是每位参与者当前最新一笔流水，否则 400；非本人非管理员 403；跨商家 404 |
+| GET | `/sessions/{id}` | 场次详情，含每人扣费与撤回状态 `voided`/`voided_at`/`voided_by`/`void_note`/`voidable`/`void_block_reason` |
+| POST | `/sessions/{id}/void` | `{note?}`，撤回未发薪的一局（开这局的本人或门店管理员）。软标记该场 `voided_at`/`voided_by`/`void_note`，并为每位参与者写一条正向 `session_void` 红冲流水把原扣现金/赠金原路退回、局数 −1；不删除任何历史流水、不影响操作人差额。护栏：未重复撤回、所在时段未落入操作人未撤销发薪区间、参与玩家未被删除，否则 400；非本人非管理员 403；跨商家 404 |
 
 规则：1~10 人、自动去重、每人扣相同茶水、允许扣成负数、整局一个事务。常用名单「免茶水」分类里的玩家会被自动排除（按游戏 id，忽略 `#后缀` 和大小写）；黑名单玩家不能开局，返回 400。
 

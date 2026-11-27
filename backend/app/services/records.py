@@ -152,6 +152,7 @@ def list_session_records(
         page_size=page_size,
         actor_id=actor_id,
         is_admin=is_admin,
+        include_voided=True,
     )
 
 

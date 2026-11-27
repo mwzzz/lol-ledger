@@ -37,7 +37,7 @@
         </label>
 
         <span class="spacer"></span>
-        <span class="cost-tip">一次最多 10 人，每次消耗 1 次额度</span>
+        <span class="cost-tip">一次最多 15 人，每次消耗 1 次额度</span>
       </div>
 
       <ZjPlayerPicker

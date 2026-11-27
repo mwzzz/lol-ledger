@@ -156,6 +156,10 @@ class BonusVoidIn(BaseModel):
     note: str = Field(default="", max_length=200)
 
 
+class SessionVoidIn(BaseModel):
+    note: str = Field(default="", max_length=200)
+
+
 class SalaryBindIn(BaseModel):
     user_id: int
     player_id: int | None = None
@@ -217,11 +221,11 @@ class ZjLoginIn(BaseModel):
 
 
 class ZjBatchCreateIn(BaseModel):
-    """一次「开始查询」：名单 1~10 人，只扣 1 次额度。"""
+    """一次「开始查询」：名单 1~15 人，只扣 1 次额度。"""
 
     area_id: int = Field(ge=1, le=999)
     all_count: int = Field(default=60, ge=1, le=100)
-    # 上限由 settings.zj_batch_max_players 决定（默认 10），这里放宽以免报 422
+    # 上限由 settings.zj_batch_max_players 决定（默认 15），这里放宽以免报 422
     players: list[str] = Field(min_length=1, max_length=50)
 
 

@@ -331,7 +331,9 @@ def player_detail(session: Session, merchant_id: int, player_id: int) -> dict:
         int(entry.amount_cents)
         for entry in entries
         if entry.reason
-        not in ("add_deposit", "transfer_in", "add_bonus", "bonus_void")
+        not in ("add_deposit", "transfer_in", "add_bonus", "bonus_void", "session_void")
+    ) - sum(
+        int(entry.amount_cents) for entry in entries if entry.reason == "session_void"
     )
     bonus_granted = sum(
         int(entry.amount_cents) for entry in entries if entry.reason == "add_bonus"
@@ -342,6 +344,8 @@ def player_detail(session: Session, merchant_id: int, player_id: int) -> dict:
     bonus_in = bonus_granted - bonus_voided
     bonus_used = sum(
         int(entry.bonus_amount_cents) for entry in entries if entry.reason == "normal_deduct"
+    ) - sum(
+        int(entry.bonus_amount_cents) for entry in entries if entry.reason == "session_void"
     )
     last_active = entries[0].created_at if entries else player.created_at
     data = player_row(player, low_cents=low, high_cents=high, last_active_at=last_active)

@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     lzyumi_user: str = ""
     lzyumi_pwd: str = ""
     zj_min_interval_seconds: float = 2.5
-    zj_batch_max_players: int = 10
+    zj_batch_max_players: int = 15
     zj_batch_ttl_minutes: int = 30
     zj_cache_ttl_seconds: int = 300
 

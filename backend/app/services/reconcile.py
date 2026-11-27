@@ -28,6 +28,7 @@ def reconcile(session: Session, merchant_id: int) -> dict:
     bonus_signed = case(
         (LedgerEntry.reason == "add_bonus", LedgerEntry.bonus_amount_cents),
         (LedgerEntry.reason == "normal_deduct", -LedgerEntry.bonus_amount_cents),
+        (LedgerEntry.reason == "session_void", LedgerEntry.bonus_amount_cents),
         (LedgerEntry.reason == "bonus_void", -LedgerEntry.amount_cents),
         else_=0,
     )

@@ -76,7 +76,7 @@ def test_open_batch_validates_players(client, zj_user, players, expected) -> Non
 
 
 def test_open_batch_rejects_too_many_players(client, zj_user) -> None:
-    players = [f"玩家{i}#12345" for i in range(11)]
+    players = [f"玩家{i}#12345" for i in range(16)]
 
     response = client.post(
         BATCHES_URL,
@@ -85,7 +85,7 @@ def test_open_batch_rejects_too_many_players(client, zj_user) -> None:
     )
 
     assert response.status_code == 400
-    assert "最多查 10" in response.json()["detail"]
+    assert "最多查 15" in response.json()["detail"]
 
 
 def test_query_player_returns_matches(client, zj_user) -> None:

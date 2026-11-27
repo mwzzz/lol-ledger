@@ -64,6 +64,7 @@ def _pending_sessions(
             select(GameSession)
             .where(
                 GameSession.merchant_id == merchant_id,
+                GameSession.voided_at.is_(None),
                 GameSession.played_at >= start,
                 GameSession.played_at <= end,
                 GameSession.id.not_in(claimed),

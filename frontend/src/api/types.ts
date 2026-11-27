@@ -225,7 +225,12 @@ export interface SessionRow {
   created_at: string
   players: SessionPlayerRow[]
   tea_free_removed?: string[]
+  voided?: boolean
+  voided_at?: string | null
+  voided_by?: UserBrief | null
+  void_note?: string
   voidable?: boolean
+  void_block_reason?: 'already_voided' | 'no_permission' | 'salary_paid' | 'player_deleted' | null
 }
 
 export interface SettingsPayload {

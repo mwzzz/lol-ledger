@@ -49,7 +49,7 @@ from app.timeutil import (
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 DEFAULT_MERCHANT_NAME = "默认商家"
 PLATFORM_MERCHANT_NAME = "平台管理"
 DEFAULT_DIVIDEND_RATE = 50
@@ -365,7 +365,7 @@ TOOL_STATEMENTS: tuple[str, ...] = (
     """,
 )
 
-# 玩家赠金与充值活动（v12）
+# 玩家赠金与充值活动（v12）、撤销加赠金（v13）、红冲撤回场次（v16）
 LEDGER_TABLE_STATEMENT = """
 CREATE TABLE IF NOT EXISTS ledger (
     id                     INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -376,7 +376,7 @@ CREATE TABLE IF NOT EXISTS ledger (
     reason                 TEXT    NOT NULL CHECK (reason IN (
                                'normal_deduct', 'manual_deduct', 'refund',
                                'add_deposit', 'transfer_out', 'transfer_in',
-                               'add_bonus', 'bonus_void')),
+                               'add_bonus', 'bonus_void', 'session_void')),
     amount_cents           INTEGER NOT NULL,
     balance_before_cents   INTEGER NOT NULL,
     balance_after_cents    INTEGER NOT NULL,
@@ -391,15 +391,15 @@ CREATE TABLE IF NOT EXISTS ledger (
     created_at             TEXT    NOT NULL,
 
     CHECK (balance_after_cents = balance_before_cents
-           + CASE WHEN reason IN ('add_deposit', 'transfer_in', 'add_bonus')
+           + CASE WHEN reason IN ('add_deposit', 'transfer_in', 'add_bonus', 'session_void')
                   THEN amount_cents ELSE -amount_cents END),
     CHECK (balance_after_cents = deposit_after_cents + bonus_after_cents),
     CHECK (bonus_after_cents >= 0),
     CHECK (bonus_amount_cents >= 0 AND bonus_amount_cents <= amount_cents),
-    CHECK (bonus_amount_cents = 0 OR reason IN ('normal_deduct', 'add_bonus')),
+    CHECK (bonus_amount_cents = 0 OR reason IN ('normal_deduct', 'add_bonus', 'session_void')),
     CHECK (reason != 'add_bonus' OR bonus_amount_cents = amount_cents),
-    CHECK ((reason IN ('normal_deduct', 'manual_deduct') AND amount_cents >= 0)
-        OR (reason NOT IN ('normal_deduct', 'manual_deduct') AND amount_cents > 0)),
+    CHECK ((reason IN ('normal_deduct', 'manual_deduct', 'session_void') AND amount_cents >= 0)
+        OR (reason NOT IN ('normal_deduct', 'manual_deduct', 'session_void') AND amount_cents > 0)),
     CHECK ((reason IN ('transfer_out', 'transfer_in')
             AND counterparty_player_id IS NOT NULL
             AND transfer_group_id IS NOT NULL)
@@ -513,7 +513,10 @@ TABLE_STATEMENTS: tuple[str, ...] = (
         note          TEXT    NOT NULL DEFAULT '',
         operator_id   INTEGER NOT NULL REFERENCES users(id),
         player_count  INTEGER NOT NULL DEFAULT 0,
-        created_at    TEXT    NOT NULL
+        created_at    TEXT    NOT NULL,
+        voided_at     TEXT,
+        voided_by     INTEGER REFERENCES users(id),
+        void_note     TEXT    NOT NULL DEFAULT ''
     )
     """,
     LEDGER_TABLE_STATEMENT,
@@ -1589,6 +1592,75 @@ def _upgrade_v14_to_v15(conn: sqlite3.Connection, db_path: Path) -> None:
         conn.execute("PRAGMA foreign_keys=ON")
 
 
+def _upgrade_v15_to_v16(conn: sqlite3.Connection, db_path: Path) -> None:
+    """v15 → v16：撤回一局改为红冲退费流水 + 软撤回场次。
+
+    1) sessions 加可空列 voided_at / voided_by / void_note；
+    2) 重建 ledger 表放宽 CHECK 约束加入 session_void（完整保留所有历史行、ID 与外键）。
+    纯增量非破坏性迁移。
+    """
+    backup = _backup(conn, db_path, "pre-v16")
+    logger.info("迁移前已备份：%s", backup)
+
+    conn.execute("PRAGMA foreign_keys=OFF")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if not _column_exists(conn, "sessions", "voided_at"):
+            conn.execute("ALTER TABLE sessions ADD COLUMN voided_at TEXT")
+        if not _column_exists(conn, "sessions", "voided_by"):
+            conn.execute(
+                "ALTER TABLE sessions ADD COLUMN voided_by INTEGER REFERENCES users(id)"
+            )
+        if not _column_exists(conn, "sessions", "void_note"):
+            conn.execute(
+                "ALTER TABLE sessions ADD COLUMN void_note TEXT NOT NULL DEFAULT ''"
+            )
+
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='ledger'"
+        ).fetchone()
+        ledger_sql = row[0] if row and row[0] else ""
+        if "session_void" not in ledger_sql:
+            new_table = LEDGER_TABLE_STATEMENT.replace(
+                "CREATE TABLE IF NOT EXISTS ledger",
+                "CREATE TABLE ledger__v16",
+                1,
+            )
+            conn.execute(new_table)
+            conn.execute(
+                """
+                INSERT INTO ledger__v16 (
+                    id, merchant_id, player_id, batch_id, session_id, reason,
+                    amount_cents, balance_before_cents, balance_after_cents,
+                    bonus_amount_cents, deposit_after_cents, bonus_after_cents,
+                    counterparty_player_id, transfer_group_id, operator_id,
+                    note, created_at, reverses_ledger_id
+                )
+                SELECT id, merchant_id, player_id, batch_id, session_id, reason,
+                       amount_cents, balance_before_cents, balance_after_cents,
+                       bonus_amount_cents, deposit_after_cents, bonus_after_cents,
+                       counterparty_player_id, transfer_group_id, operator_id,
+                       note, created_at, reverses_ledger_id
+                FROM ledger
+                """
+            )
+            conn.execute("DROP TABLE ledger")
+            conn.execute("ALTER TABLE ledger__v16 RENAME TO ledger")
+            for statement in INDEX_STATEMENTS:
+                if " ON ledger" in statement:
+                    conn.execute(statement)
+
+        conn.execute("PRAGMA user_version = 16")
+        _assert_foreign_keys(conn)
+        conn.execute("COMMIT")
+        logger.info("v15 → v16 迁移完成：场次软撤回与红冲退茶水流水就绪")
+    except Exception:
+        _rollback(conn)
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys=ON")
+
+
 def ensure_schema() -> None:
     path = db.current_path()
     conn = sqlite3.connect(str(path), isolation_level=None, timeout=20)
@@ -1629,6 +1701,8 @@ def ensure_schema() -> None:
             _upgrade_v13_to_v14(conn, path)
         if version < 15:
             _upgrade_v14_to_v15(conn, path)
+        if version < 16:
+            _upgrade_v15_to_v16(conn, path)
     finally:
         conn.close()
 

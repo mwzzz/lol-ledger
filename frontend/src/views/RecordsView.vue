@@ -51,8 +51,10 @@
       <el-select v-if="tab === 'deposits'" v-model="reason" placeholder="全部原因" style="width: 150px" @change="reload">
         <el-option label="全部原因" value="" />
         <el-option label="正常扣押" value="normal_deduct" />
+        <el-option label="撤回局退茶水" value="session_void" />
         <el-option label="加押金" value="add_deposit" />
         <el-option label="加赠金" value="add_bonus" />
+        <el-option label="撤销加赠金" value="bonus_void" />
         <el-option label="退押金" value="refund" />
         <el-option label="划押转出" value="transfer_out" />
         <el-option label="划押转入" value="transfer_in" />
@@ -170,15 +172,22 @@
 
     <template v-else>
         <div class="panel desktop-only">
-          <el-table v-loading="loading" :data="sessions">
+          <el-table v-loading="loading" :data="sessions" :row-class-name="sessionRowClass">
             <el-table-column label="时间" width="140">
               <template #default="{ row }">
                 <span class="muted nowrap">{{ formatShort(row.played_at) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="场次名" min-width="200">
+            <el-table-column label="场次名" min-width="210">
               <template #default="{ row }">
-                <span class="cell-main">{{ row.name }}</span>
+                <div class="session-title-cell">
+                  <span class="cell-main" :class="{ 'line-through': row.voided }">{{ row.name }}</span>
+                  <el-tag v-if="row.voided" type="info" size="small" effect="plain">已撤回</el-tag>
+                </div>
+                <div v-if="row.voided" class="cell-sub">
+                  {{ row.voided_by?.display_name || '-' }} 撤回于 {{ formatShort(row.voided_at) }}
+                  <template v-if="row.void_note"> · {{ row.void_note }}</template>
+                </div>
               </template>
             </el-table-column>
             <el-table-column label="人数" width="80" align="right">
@@ -193,7 +202,9 @@
             </el-table-column>
             <el-table-column label="茶水合计" width="120" align="right">
               <template #default="{ row }">
-                <span class="mono">¥{{ formatCents(row.tea_total_cents) }}</span>
+                <span class="mono" :class="{ 'line-through muted': row.voided }">
+                  ¥{{ formatCents(row.tea_total_cents) }}
+                </span>
               </template>
             </el-table-column>
             <el-table-column label="操作人" width="100">
@@ -206,7 +217,7 @@
                 <span class="muted players">{{ row.players.map((p: any) => p.game_id).join('、') }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="80" align="right">
+            <el-table-column label="操作" width="96" align="right">
               <template #default="{ row }">
                 <el-button
                   v-if="row.voidable"
@@ -216,6 +227,13 @@
                 >
                   撤回
                 </el-button>
+                <span v-else-if="row.voided" class="muted small">已撤回</span>
+                <span v-else-if="row.void_block_reason === 'salary_paid'" class="muted small">
+                  已发薪
+                </span>
+                <span v-else-if="row.void_block_reason === 'player_deleted'" class="muted small">
+                  含已删玩家
+                </span>
               </template>
             </el-table-column>
           </el-table>
@@ -224,9 +242,17 @@
 
         <div class="mobile-only">
           <div v-loading="loading" class="record-cards">
-            <div v-for="row in sessions" :key="row.id" class="record-card">
+            <div
+              v-for="row in sessions"
+              :key="row.id"
+              class="record-card"
+              :class="{ 'is-voided-card': row.voided }"
+            >
               <div class="record-card-head">
-                <span class="cell-main">{{ row.name }}</span>
+                <div class="session-title-cell">
+                  <span class="cell-main" :class="{ 'line-through': row.voided }">{{ row.name }}</span>
+                  <el-tag v-if="row.voided" type="info" size="small" effect="plain">已撤回</el-tag>
+                </div>
                 <span class="mono">{{ row.player_count }} 人</span>
               </div>
               <div class="cell-sub">
@@ -237,8 +263,15 @@
                 <span>操作人 {{ row.operator?.display_name || '-' }}</span>
               </div>
               <div class="record-card-players">{{ row.players.map((p) => p.game_id).join('、') }}</div>
-              <div v-if="row.voidable" class="record-card-actions">
+              <div v-if="row.voided" class="cell-sub">
+                {{ row.voided_by?.display_name || '-' }} 撤回于 {{ formatShort(row.voided_at) }}
+                <template v-if="row.void_note"> · {{ row.void_note }}</template>
+              </div>
+              <div v-else-if="row.voidable" class="record-card-actions">
                 <el-button link type="warning" @click="voidSession(row)">撤回这一局</el-button>
+              </div>
+              <div v-else-if="row.void_block_reason === 'salary_paid'" class="record-card-actions">
+                <span class="muted small">已发薪（不可撤回）</span>
               </div>
             </div>
             <div v-if="!loading && !sessions.length" class="empty-hint">没有记录</div>
@@ -349,20 +382,30 @@ function reload() {
   load()
 }
 
+function sessionRowClass({ row }: { row: SessionRow }): string {
+  return row.voided ? 'is-voided-row' : ''
+}
+
 async function voidSession(row: SessionRow) {
+  let note = ''
   try {
-    await ElMessageBox.confirm(
-      `确定撤回「${row.name}」这一局？将删除该场次与它产生的茶水扣费，` +
-        `退回 ${row.player_count} 名玩家的押金与局数（每人 ¥${formatCents(row.tea_fee_cents)}）。` +
-        '只适用于刚开、且之后没再操作过这些玩家的局；不会生成任何加押/退押记录。',
+    const answer = await ElMessageBox.prompt(
+      `确定撤回「${row.name}」这一局？系统将为 ${row.player_count} 名玩家写一条「撤回局退茶水」冲正流水，` +
+        `原路退回押金/赠金（每人 ¥${formatCents(row.tea_fee_cents)}）并局数 -1；不影响操作人差额。`,
       '撤回这一局',
-      { confirmButtonText: '确认撤回', cancelButtonText: '取消', type: 'warning' },
+      {
+        confirmButtonText: '确认撤回',
+        cancelButtonText: '取消',
+        type: 'warning',
+        inputPlaceholder: '可选：填写撤回原因（留空可直接确认）',
+      },
     )
+    note = String(answer.value || '').trim()
   } catch {
     return
   }
-  await sessionApi.void(row.id)
-  ElMessage.success('已撤回这一局')
+  await sessionApi.void(row.id, note)
+  ElMessage.success('已撤回这一局，茶水已原路退回')
   await load()
   app.notifySessionCreated()
 }
@@ -476,6 +519,25 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 6px;
+}
+
+.session-title-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.line-through {
+  text-decoration: line-through;
+}
+
+.is-voided-card {
+  opacity: 0.62;
+}
+
+:deep(.is-voided-row) {
+  opacity: 0.62;
 }
 
 .players {

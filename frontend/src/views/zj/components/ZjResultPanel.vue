@@ -3,8 +3,8 @@
     <div class="result-head">
       <span class="result-title">统计结果</span>
       <span class="legend">
-        <i class="dot win"></i>五子登科=胜
-        <i class="dot lose"></i>满载SUV=负
+        <i class="dot win"></i>胜
+        <i class="dot lose"></i>负
       </span>
       <span class="spacer"></span>
       <span v-if="rows.length" class="result-count">{{ rows.length }} 人</span>
@@ -39,7 +39,7 @@
                   @error="hideImage"
                 />
                 <span class="match-res" :class="match.win ? 'win' : 'lose'">
-                  {{ match.win ? '五子登科' : '满载SUV' }}
+                  {{ match.win ? '胜' : '负' }}
                 </span>
                 <span class="match-mode">
                   {{ match.mode }}<template v-if="match.pos"> · {{ match.pos }}</template>
@@ -94,8 +94,6 @@
               <b class="mono" :style="{ color: rateColor(row.stat.winRate) }">
                 {{ (row.stat.winRate * 100).toFixed(1) }}%
               </b>
-              <span v-if="row.stat.winRate >= 0.8" class="tag win">五子</span>
-              <span v-else-if="row.stat.winRate < 0.4" class="tag lose">SUV</span>
             </div>
           </template>
         </el-table-column>
@@ -343,23 +341,6 @@ function hideImage(event: Event) {
   transition: width 0.4s ease;
 }
 
-.tag {
-  padding: 0 5px;
-  border-radius: 4px;
-  font-size: 10.5px;
-  font-weight: 700;
-}
-
-.tag.win {
-  background: rgba(62, 207, 142, 0.14);
-  color: #3ecf8e;
-}
-
-.tag.lose {
-  background: rgba(255, 92, 92, 0.14);
-  color: #ff8080;
-}
-
 .kda-sub {
   font-size: 11px;
   color: var(--app-text-muted);
@@ -430,7 +411,7 @@ function hideImage(event: Event) {
 }
 
 .match-res {
-  flex: 0 0 58px;
+  flex: 0 0 24px;
   font-weight: 700;
 }
 
