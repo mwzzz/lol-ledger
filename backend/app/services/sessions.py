@@ -247,6 +247,7 @@ def open_session(
     data["tea_free_removed"] = removed
     data["voidable"] = True
     data["void_block_reason"] = None
+    data["restorable"] = False
     return data
 
 
@@ -414,6 +415,152 @@ def void_session(
     }
 
 
+def restore_session(
+    session: Session,
+    actor: Actor,
+    session_id: int,
+    *,
+    note: str = "",
+    ip: str = "",
+) -> dict:
+    """管理员恢复误撤回的场次：清除软撤回标记，并按原茶水为每位参与者重扣茶水（新写 normal_deduct 流水）、局数 +1。
+
+    不删除或修改任何历史流水，保留原场次操作人与开局时间，对账恒等式始终成立。
+    护栏（与撤回对称）：
+    - 仅门店管理员可操作；
+    - 场次必须处于已撤回状态；
+    - 场次时间不能落入原操作人未撤销的发薪区间；
+    - 参与玩家均未被软删除。
+    """
+    if not actor.is_admin:
+        raise ForbiddenError("只有管理员能恢复已撤回的场次")
+
+    merchant_id = actor.merchant_id
+    game = get_session_model(session, session_id, merchant_id)
+    game_id = int(game.id)
+    game_name = game.name or str(game_id)
+    game_operator_id = int(game.operator_id)
+    game_played_at = game.played_at
+
+    if game.voided_at is None:
+        raise AppError("这一局未被撤回，无需恢复")
+
+    salary_windows = _live_salary_windows(session, merchant_id, {game_operator_id})
+    if _in_salary_window(game_played_at, salary_windows.get(game_operator_id, [])):
+        raise AppError(
+            "这一局所在时段已发工资，不能恢复；如需恢复请先在「发薪记录」撤销对应批次。"
+        )
+
+    members = list(
+        session.scalars(
+            select(SessionPlayer).where(SessionPlayer.session_id == game_id)
+        )
+    )
+    if not members:
+        raise AppError("这一局没有参与玩家记录，无法恢复")
+
+    deleted_names: list[str] = []
+    targets: list[tuple[int, int, int, int | None]] = []
+    for member in members:
+        player = session.get(Player, int(member.player_id))
+        if (
+            player is None
+            or int(player.merchant_id) != merchant_id
+            or player.deleted_at is not None
+        ):
+            deleted_names.append(player.game_id if player else f"#{member.player_id}")
+            continue
+        last_void_id = session.scalar(
+            select(LedgerEntry.id)
+            .where(
+                LedgerEntry.merchant_id == merchant_id,
+                LedgerEntry.session_id == game_id,
+                LedgerEntry.player_id == int(member.player_id),
+                LedgerEntry.reason == "session_void",
+            )
+            .order_by(LedgerEntry.id.desc())
+            .limit(1)
+        )
+        targets.append(
+            (
+                int(member.id),
+                int(member.player_id),
+                int(member.tea_fee_cents),
+                int(last_void_id) if last_void_id is not None else None,
+            )
+        )
+
+    if deleted_names:
+        raise AppError(
+            "玩家 " + "、".join(sorted(set(deleted_names))) + " 已被删除，无法恢复这一局"
+        )
+
+    clean_note = clean_text(note, "备注", 200)
+    entry_note = (
+        f"恢复误撤回 {game_name}：{clean_note}"
+        if clean_note
+        else f"恢复误撤回 {game_name}"
+    )[:200]
+
+    for member_id, player_id, tea_fee_cents, last_void_id in targets:
+        (
+            cash_before,
+            cash_after,
+            bonus_before,
+            bonus_after,
+            bonus_used,
+        ) = apply_tea_deduction(
+            session,
+            player_id,
+            tea_fee_cents,
+            merchant_id=merchant_id,
+        )
+        entry = _write_entry(
+            session,
+            actor=actor,
+            player_id=player_id,
+            reason="normal_deduct",
+            amount_cents=tea_fee_cents,
+            deposit_before=cash_before,
+            deposit_after=cash_after,
+            bonus_before=bonus_before,
+            bonus_after=bonus_after,
+            bonus_amount_cents=bonus_used,
+            batch_id=None,
+            session_id=game_id,
+            reverses_ledger_id=last_void_id,
+            note=entry_note,
+        )
+        member_row = session.get(SessionPlayer, member_id)
+        if member_row is not None:
+            member_row.ledger_id = entry.id
+
+    game = get_session_model(session, game_id, merchant_id)
+    game.voided_at = None
+    game.voided_by = None
+    game.void_note = ""
+    session.flush()
+
+    detail = f"恢复场次 {game_name}，重扣 {len(targets)} 人茶水"
+    if clean_note:
+        detail = f"{detail}（{clean_note}）"
+    write_audit(
+        session,
+        merchant_id=merchant_id,
+        user_id=actor.id,
+        action="restore_session",
+        target_type="session",
+        target_id=game_id,
+        detail=detail[:200],
+        ip=ip,
+    )
+    return {
+        "restored": True,
+        "session_id": game_id,
+        "charged_player_count": len(targets),
+    }
+
+
 def get_session_model(session: Session, session_id: int, merchant_id: int) -> GameSession:
     return scoped_get(session, GameSession, session_id, merchant_id, "找不到这个场次")
 
@@ -488,9 +635,12 @@ def list_sessions(
     items = []
     for game in games:
         row = session_row(game, members.get(game.id, []))
-        can_void, block_reason = void_status.get(int(game.id), (False, None))
+        can_void, block_reason, can_restore = void_status.get(
+            int(game.id), (False, None, False)
+        )
         row["voidable"] = can_void
         row["void_block_reason"] = block_reason
+        row["restorable"] = can_restore
         items.append(row)
 
     return {
@@ -509,9 +659,9 @@ def _void_status_map(
     *,
     actor_id: int | None,
     is_admin: bool,
-) -> dict[int, tuple[bool, str | None]]:
-    """计算每个场次当前能否撤回及不可撤回的原因。"""
-    result: dict[int, tuple[bool, str | None]] = {}
+) -> dict[int, tuple[bool, str | None, bool]]:
+    """计算每个场次当前能否撤回、不可撤回原因，以及管理员能否恢复已撤回场次。"""
+    result: dict[int, tuple[bool, str | None, bool]] = {}
     if not games:
         return result
 
@@ -534,25 +684,32 @@ def _void_status_map(
 
     for game in games:
         gid = int(game.id)
+        rows = members.get(gid, [])
+        in_salary = _in_salary_window(
+            game.played_at, salary_windows.get(int(game.operator_id), [])
+        )
+        has_deleted_or_empty = not rows or any(
+            int(m.player_id) in deleted_players for m in rows
+        )
         if game.voided_at is not None:
-            result[gid] = (False, "already_voided")
+            can_restore = (
+                bool(is_admin) and not in_salary and not has_deleted_or_empty
+            )
+            result[gid] = (False, "already_voided", can_restore)
             continue
         allowed = bool(is_admin) or (
             actor_id is not None and int(game.operator_id) == int(actor_id)
         )
         if not allowed:
-            result[gid] = (False, "no_permission")
+            result[gid] = (False, "no_permission", False)
             continue
-        if _in_salary_window(
-            game.played_at, salary_windows.get(int(game.operator_id), [])
-        ):
-            result[gid] = (False, "salary_paid")
+        if in_salary:
+            result[gid] = (False, "salary_paid", False)
             continue
-        rows = members.get(gid, [])
-        if not rows or any(int(m.player_id) in deleted_players for m in rows):
-            result[gid] = (False, "player_deleted")
+        if has_deleted_or_empty:
+            result[gid] = (False, "player_deleted", False)
             continue
-        result[gid] = (True, None)
+        result[gid] = (True, None, False)
     return result
 
 
@@ -569,16 +726,17 @@ def get_session_detail(
         session.scalars(select(SessionPlayer).where(SessionPlayer.session_id == session_id))
     )
     data = session_row(game, players)
-    can_void, block_reason = _void_status_map(
+    can_void, block_reason, can_restore = _void_status_map(
         session,
         merchant_id,
         [game],
         {int(game.id): players},
         actor_id=actor_id,
         is_admin=is_admin,
-    ).get(int(game.id), (False, None))
+    ).get(int(game.id), (False, None, False))
     data["voidable"] = can_void
     data["void_block_reason"] = block_reason
+    data["restorable"] = can_restore
     return data
 
 

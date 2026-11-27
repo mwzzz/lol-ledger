@@ -231,6 +231,7 @@ export interface SessionRow {
   void_note?: string
   voidable?: boolean
   void_block_reason?: 'already_voided' | 'no_permission' | 'salary_paid' | 'player_deleted' | null
+  restorable?: boolean
 }
 
 export interface SettingsPayload {

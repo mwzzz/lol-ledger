@@ -175,6 +175,10 @@ export const sessionApi = {
     http
       .post(`/sessions/${id}/void`, { note })
       .then((res) => res.data as { voided: boolean; session_id: number; restored_player_count: number }),
+  restore: (id: number, note = '') =>
+    http
+      .post(`/sessions/${id}/restore`, { note })
+      .then((res) => res.data as { restored: boolean; session_id: number; charged_player_count: number }),
 }
 
 export const recordApi = {

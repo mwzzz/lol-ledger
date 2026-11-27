@@ -66,7 +66,7 @@ cd frontend && npm run typecheck && npm run build
 | 充值活动 | `recharge_campaigns` 按商家配置多档，加押金自动取满足金额的最高档送一次；Excel 导入不触发 |
 | 余额 | 现金 `players.deposit_cents` = 现金流水净额 = 末条 `deposit_after_cents`；赠金 `players.bonus_cents` = 赠金流水净额 = 末条 `bonus_after_cents`；界面总余额 = 两者相加 |
 | 分红幂等 | **每一局只结算一次**：结算时把区间内未认领的场次逐局写进 `dividend_settlement_sessions`（未冲销行里 `session_id` 唯一，DB 级防重复发钱）；区间重叠不再整段清零。历史记录只存到日期，比较前统一用 `timeutil.bound_start_text` / `bound_end_text` 归一化 |
-| 撤回一局 | v16 改为红冲退费 + 软撤回。「场次记录」每行未发薪的局可「撤回」（**开这局的本人或门店管理员**，可填可选备注）：给 `sessions` 写 `voided_at`/`voided_by`/`void_note`（所有统计、看板汇总与发工资不再计入，场次记录里置灰留痕），并为每位参与者写一条正向 `session_void` 冲正流水把原扣现金/赠金原路退回、局数 −1；**不删历史流水、不计入收/退押金、不影响操作人差额**，之后有新流水也能撤回。护栏：未重复撤回、未落在操作人未撤销发薪区间（`salary_payments`）、参与玩家均未删除 |
+| 撤回一局 | v16 改为红冲退费 + 软撤回。「场次记录」每行未发薪的局可「撤回」（**开这局的本人或门店管理员**，可填可选备注）：给 `sessions` 写 `voided_at`/`voided_by`/`void_note`（所有统计、看板汇总与发工资不再计入，场次记录里置灰留痕），并为每位参与者写一条正向 `session_void` 冲正流水把原扣现金/赠金原路退回、局数 −1；**不删历史流水、不计入收/退押金、不影响操作人差额**，之后有新流水也能撤回。护栏：未重复撤回、未落在操作人未撤销发薪区间（`salary_payments`）、参与玩家均未删除。误撤回时**仅门店管理员**可在「场次记录」对已撤回行点「恢复」（`POST /sessions/{id}/restore`，同护栏）：清撤回标记、重扣茶水并更新 `session_players.ledger_id`、局数 +1，保留原操作人与时间 |
 | 发工资 | v15。店长在汇总页按区间一键给每人发工资：金额=本人 `dividend_cents`（服务端重算，与生成工资汇总一致），加押金到绑定的工资账户（`users.salary_player_id`），**`apply_campaign=False` 不触发充值活动赠金**；`salary_payments` 每人每「工资日」（区间开始日）只一条未冲销记录（DB 唯一索引防重复发），可整批撤销（退押金，受余额/赠金规则限制）；仅门店管理员可用 |
 
 对账不通过（`/api/v1/reconcile`）说明有人绕过接口改过余额，找管理员，不要自行修数据。

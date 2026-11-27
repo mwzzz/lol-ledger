@@ -141,8 +141,9 @@ Authorization: Bearer <access_token>
 | GET | `/sessions` | `keyword, date_from, date_to, page, page_size`；仅返回未撤回场次，每行带 `voidable`、`void_block_reason` |
 | POST | `/sessions/preview` | `{player_ids, tea_fee_cents}` → 每人扣前/扣后/是否变负 |
 | POST | `/sessions` | `{name?, played_at?, note?, tea_fee_cents, player_ids}` |
-| GET | `/sessions/{id}` | 场次详情，含每人扣费与撤回状态 `voided`/`voided_at`/`voided_by`/`void_note`/`voidable`/`void_block_reason` |
+| GET | `/sessions/{id}` | 场次详情，含每人扣费与撤回状态 `voided`/`voided_at`/`voided_by`/`void_note`/`voidable`/`void_block_reason`/`restorable` |
 | POST | `/sessions/{id}/void` | `{note?}`，撤回未发薪的一局（开这局的本人或门店管理员）。软标记该场 `voided_at`/`voided_by`/`void_note`，并为每位参与者写一条正向 `session_void` 红冲流水把原扣现金/赠金原路退回、局数 −1；不删除任何历史流水、不影响操作人差额。护栏：未重复撤回、所在时段未落入操作人未撤销发薪区间、参与玩家未被删除，否则 400；非本人非管理员 403；跨商家 404 |
+| POST | `/sessions/{id}/restore` | `{note?}`，**仅门店管理员**恢复已撤回场次。清除 `voided_at`/`voided_by`/`void_note`，按原每人茶水为每位参与者重扣茶水（新写 `normal_deduct` 流水并更新 `session_players.ledger_id`）、局数 +1，保留原操作人与开局时间，写审计 `restore_session`。护栏与撤回对称（须已撤回、未落入原操作人未撤销发薪区间、参与玩家未删除），否则 400；非管理员 403；跨商家 404 |
 
 规则：1~10 人、自动去重、每人扣相同茶水、允许扣成负数、整局一个事务。常用名单「免茶水」分类里的玩家会被自动排除（按游戏 id，忽略 `#后缀` 和大小写）；黑名单玩家不能开局，返回 400。
 

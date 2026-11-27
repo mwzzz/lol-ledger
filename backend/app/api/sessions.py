@@ -5,7 +5,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
-from app.deps import Actor, client_ip, get_current_user, get_read_db, get_write_db
+from app.deps import (
+    Actor,
+    client_ip,
+    get_current_user,
+    get_read_db,
+    get_write_db,
+    require_admin,
+)
 from app.schemas import SessionCreateIn, SessionPreviewIn, SessionVoidIn
 from app.services import sessions as session_service
 
@@ -71,6 +78,24 @@ def void_session(
 ) -> dict:
     """撤回未发薪的一局：软标记场次已撤回，并写正向 session_void 流水把押金/赠金原路退回、局数 -1。"""
     return session_service.void_session(
+        session,
+        actor,
+        session_id,
+        note=payload.note if payload else "",
+        ip=client_ip(request),
+    )
+
+
+@router.post("/{session_id}/restore")
+def restore_session(
+    session_id: int,
+    request: Request,
+    payload: SessionVoidIn | None = None,
+    actor: Actor = Depends(require_admin),
+    session: Session = Depends(get_write_db),
+) -> dict:
+    """管理员恢复误撤回的场次：按原茶水重扣并恢复场次有效状态。"""
+    return session_service.restore_session(
         session,
         actor,
         session_id,

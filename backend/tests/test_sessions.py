@@ -31,6 +31,13 @@ def void_session(client, headers, session_id: int):
     return client.post(f"/api/v1/sessions/{session_id}/void", headers=headers)
 
 
+def restore_session(client, headers, session_id: int, note: str = ""):
+    payload = {"note": note} if note else None
+    return client.post(
+        f"/api/v1/sessions/{session_id}/restore", json=payload, headers=headers
+    )
+
+
 def test_open_session_deducts_and_counts(client, admin_headers) -> None:
     ids = [new_player(client, admin_headers, f"队员{i}")["id"] for i in range(3)]
     for pid in ids:
@@ -491,4 +498,196 @@ def test_voidable_flag_in_session_list(client, admin_headers) -> None:
     assert _flag(game["id"]) is True
     assert void_session(client, admin_headers, game["id"]).status_code == 200
     assert _flag(game["id"]) is False
+
+
+def test_restore_session_recharges_tea_preserves_operator_and_allows_revoid(
+    client, admin_headers, staff_headers, staff
+) -> None:
+    p_cash = new_player(client, admin_headers, "恢复现金哥")["id"]
+    p_bonus = new_player(client, admin_headers, "恢复赠金哥")["id"]
+    add_money(client, admin_headers, p_cash, 1000)
+    add_money(client, admin_headers, p_bonus, 1000)
+    client.post(
+        f"/api/v1/players/{p_bonus}/bonus",
+        json={"amount_cents": 200},
+        headers=admin_headers,
+    )
+
+    game = create_session(client, staff_headers, [p_cash, p_bonus], tea=300)
+    orig_played_at = game["played_at"]
+
+    assert void_session(client, admin_headers, game["id"]).status_code == 200
+
+    # 管理员看到 restorable=True，店员看到 restorable=False
+    admin_recs = client.get("/api/v1/records/sessions", headers=admin_headers).json()["items"]
+    admin_rec = next(item for item in admin_recs if item["id"] == game["id"])
+    assert admin_rec["voided"] is True
+    assert admin_rec["restorable"] is True
+
+    staff_recs = client.get("/api/v1/records/sessions", headers=staff_headers).json()["items"]
+    staff_rec = next(item for item in staff_recs if item["id"] == game["id"])
+    assert staff_rec["restorable"] is False
+
+    # 撤回后操作人汇总为 0
+    summary_voided = client.get("/api/v1/summary/operators", headers=admin_headers).json()
+    assert summary_voided["totals"]["session_count"] == 0
+
+    # 管理员恢复场次
+    res = restore_session(client, admin_headers, game["id"], note="误撤回恢复")
+    assert res.status_code == 200, res.text
+    assert res.json()["restored"] is True
+    assert res.json()["charged_player_count"] == 2
+
+    # 余额、赠金、局数、流水链全部还原
+    d_cash = client.get(f"/api/v1/players/{p_cash}", headers=admin_headers).json()
+    assert d_cash["deposit_cents"] == 700
+    assert d_cash["games_played"] == 1
+    assert d_cash["total_out_cents"] == 300
+
+    d_bonus = client.get(f"/api/v1/players/{p_bonus}", headers=admin_headers).json()
+    assert d_bonus["deposit_cents"] == 900
+    assert d_bonus["bonus_cents"] == 0
+    assert d_bonus["games_played"] == 1
+    assert d_bonus["bonus_used_cents"] == 200
+
+    entries = client.get(f"/api/v1/players/{p_cash}/ledger", headers=admin_headers).json()["items"]
+    assert [e["reason"] for e in entries[:3]] == [
+        "normal_deduct",
+        "session_void",
+        "normal_deduct",
+    ]
+    assert entries[0]["reverses_ledger_id"] == entries[1]["id"]
+    assert "恢复误撤回" in entries[0]["note"]
+
+    # 原操作人与时间完整保留，汇总归位回 staff
+    detail = client.get(f"/api/v1/sessions/{game['id']}", headers=admin_headers).json()
+    assert detail["voided"] is False
+    assert detail["voidable"] is True
+    assert detail["restorable"] is False
+    assert detail["operator"]["id"] == staff["id"]
+    assert detail["played_at"] == orig_played_at
+
+    summary_restored = client.get("/api/v1/summary/operators", headers=admin_headers).json()
+    assert summary_restored["totals"]["session_count"] == 1
+    assert summary_restored["totals"]["tea_cents"] == 600
+    staff_row = next(r for r in summary_restored["rows"] if r["user"]["id"] == staff["id"])
+    assert staff_row["session_count"] == 1
+    assert staff_row["tea_cents"] == 600
+    assert client.get("/api/v1/reconcile", headers=admin_headers).json()["ok"] is True
+
+    # 恢复后可以再次正常撤回，且能按最新扣费精确退回赠金与现金
+    assert void_session(client, admin_headers, game["id"]).status_code == 200
+    d_bonus2 = client.get(f"/api/v1/players/{p_bonus}", headers=admin_headers).json()
+    assert d_bonus2["deposit_cents"] == 1000
+    assert d_bonus2["bonus_cents"] == 200
+    assert d_bonus2["games_played"] == 0
+    assert client.get("/api/v1/reconcile", headers=admin_headers).json()["ok"] is True
+
+
+def test_restore_requires_admin_and_is_tenant_isolated(
+    client, admin_headers, staff_headers, admin_b_headers
+) -> None:
+    pid = new_player(client, admin_headers, "权限恢复哥")["id"]
+    add_money(client, admin_headers, pid, 1000)
+    game = create_session(client, staff_headers, [pid], tea=300)
+    assert void_session(client, staff_headers, game["id"]).status_code == 200
+
+    # 店员本人不能恢复
+    assert restore_session(client, staff_headers, game["id"]).status_code == 403
+    # 别家管理员 404
+    assert restore_session(client, admin_b_headers, game["id"]).status_code == 404
+
+
+def test_restore_blocked_when_not_voided_salary_paid_or_player_deleted(
+    client, admin_headers, admin
+) -> None:
+    pid = new_player(client, admin_headers, "护栏恢复哥")["id"]
+    wallet = new_player(client, admin_headers, "恢复工资钱包")["id"]
+    add_money(client, admin_headers, pid, 1000)
+
+    # 未撤回场次不能恢复
+    game1 = create_session(client, admin_headers, [pid], tea=300)
+    not_voided = restore_session(client, admin_headers, game1["id"])
+    assert not_voided.status_code == 400
+    assert "未被撤回" in not_voided.json()["detail"]
+
+    # 撤回 game1，再开同日 game2 并发薪覆盖该日 -> game1 不可恢复
+    game2 = create_session(client, admin_headers, [pid], tea=300)
+    assert void_session(client, admin_headers, game1["id"]).status_code == 200
+    day = game1["played_at"][:10]
+    assert (
+        client.post(
+            "/api/v1/salary/bind",
+            json={"user_id": admin["id"], "player_id": wallet},
+            headers=admin_headers,
+        ).status_code
+        == 200
+    )
+    paid = client.post(
+        "/api/v1/salary/pay",
+        json={"date_from": day, "date_to": day, "user_ids": [admin["id"]]},
+        headers=admin_headers,
+    )
+    assert paid.status_code == 201, paid.text
+
+    recs = client.get("/api/v1/records/sessions", headers=admin_headers).json()["items"]
+    rec1 = next(item for item in recs if item["id"] == game1["id"])
+    assert rec1["restorable"] is False
+
+    blocked_salary = restore_session(client, admin_headers, game1["id"])
+    assert blocked_salary.status_code == 400
+    assert "已发工资" in blocked_salary.json()["detail"]
+
+    # 撤销发薪后恢复可用
+    assert (
+        client.post(
+            "/api/v1/salary/void",
+            json={"batch_id": paid.json()["batch_id"]},
+            headers=admin_headers,
+        ).status_code
+        == 201
+    )
+    assert restore_session(client, admin_headers, game1["id"]).status_code == 200
+
+    # 参与玩家被软删除后不可恢复
+    pid_del = new_player(client, admin_headers, "撤后被删哥")["id"]
+    game_del = create_session(client, admin_headers, [pid_del], tea=0)
+    assert void_session(client, admin_headers, game_del["id"]).status_code == 200
+    assert client.delete(f"/api/v1/players/{pid_del}", headers=admin_headers).status_code == 204
+    blocked_del = restore_session(client, admin_headers, game_del["id"])
+    assert blocked_del.status_code == 400
+    assert "已被删除" in blocked_del.json()["detail"]
+    assert client.get("/api/v1/reconcile", headers=admin_headers).json()["ok"] is True
+
+
+def test_restore_after_later_deposit_and_bonus_spend_passes_reconcile(
+    client, admin_headers
+) -> None:
+    """撤回后玩家又充值、或把退回的赠金在别的局花掉了，恢复仍能正确扣费并过对账。"""
+    p_a = new_player(client, admin_headers, "撤后充值哥")["id"]
+    p_b = new_player(client, admin_headers, "撤后花赠金哥")["id"]
+    add_money(client, admin_headers, p_a, 1000)
+    add_money(client, admin_headers, p_b, 100)
+    client.post(
+        f"/api/v1/players/{p_b}/bonus",
+        json={"amount_cents": 300},
+        headers=admin_headers,
+    )
+
+    game1 = create_session(client, admin_headers, [p_a, p_b], tea=300)
+    assert void_session(client, admin_headers, game1["id"]).status_code == 200
+
+    # 期间 p_a 新充值 6600，p_b 开新局把退回的 300 赠金用完了
+    add_money(client, admin_headers, p_a, 6600)
+    create_session(client, admin_headers, [p_b], tea=300)
+
+    assert restore_session(client, admin_headers, game1["id"]).status_code == 200
+    d_a = client.get(f"/api/v1/players/{p_a}", headers=admin_headers).json()
+    d_b = client.get(f"/api/v1/players/{p_b}", headers=admin_headers).json()
+    assert d_a["deposit_cents"] == 7300
+    assert d_a["games_played"] == 1
+    assert d_b["deposit_cents"] == -200
+    assert d_b["bonus_cents"] == 0
+    assert d_b["games_played"] == 2
+    assert client.get("/api/v1/reconcile", headers=admin_headers).json()["ok"] is True
 

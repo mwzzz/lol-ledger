@@ -223,9 +223,20 @@
                   v-if="row.voidable"
                   link
                   type="warning"
-                  @click="voidSession(row)"
+                  :disabled="submittingVoid || restoringId !== null"
+                  @click="openVoidDialog(row)"
                 >
                   撤回
+                </el-button>
+                <el-button
+                  v-else-if="row.restorable"
+                  link
+                  type="primary"
+                  :loading="restoringId === row.id"
+                  :disabled="restoringId !== null || submittingVoid"
+                  @click="restoreSession(row)"
+                >
+                  恢复
                 </el-button>
                 <span v-else-if="row.voided" class="muted small">已撤回</span>
                 <span v-else-if="row.void_block_reason === 'salary_paid'" class="muted small">
@@ -267,10 +278,28 @@
                 {{ row.voided_by?.display_name || '-' }} 撤回于 {{ formatShort(row.voided_at) }}
                 <template v-if="row.void_note"> · {{ row.void_note }}</template>
               </div>
-              <div v-else-if="row.voidable" class="record-card-actions">
-                <el-button link type="warning" @click="voidSession(row)">撤回这一局</el-button>
+              <div v-if="row.restorable" class="record-card-actions">
+                <el-button
+                  link
+                  type="primary"
+                  :loading="restoringId === row.id"
+                  :disabled="restoringId !== null || submittingVoid"
+                  @click="restoreSession(row)"
+                >
+                  恢复这一局
+                </el-button>
               </div>
-              <div v-else-if="row.void_block_reason === 'salary_paid'" class="record-card-actions">
+              <div v-else-if="!row.voided && row.voidable" class="record-card-actions">
+                <el-button
+                  link
+                  type="warning"
+                  :disabled="submittingVoid || restoringId !== null"
+                  @click="openVoidDialog(row)"
+                >
+                  撤回这一局
+                </el-button>
+              </div>
+              <div v-else-if="!row.voided && row.void_block_reason === 'salary_paid'" class="record-card-actions">
                 <span class="muted small">已发薪（不可撤回）</span>
               </div>
             </div>
@@ -290,6 +319,36 @@
         @size-change="reload"
       />
     </div>
+
+    <el-dialog
+      v-model="voidDialogOpen"
+      title="撤回这一局"
+      width="440px"
+      :close-on-click-modal="false"
+      :close-on-press-escape="!submittingVoid"
+      :show-close="!submittingVoid"
+    >
+      <div v-if="voidTarget" class="void-dialog-body" @keydown.enter.prevent>
+        <p class="void-dialog-desc">
+          确定撤回<b>「{{ voidTarget.name }}」</b>（原操作人：{{ voidTarget.operator?.display_name || '-' }}）？
+          系统将为 {{ voidTarget.player_count }} 名玩家写一条「撤回局退茶水」冲正流水，原路退回押金/赠金（每人 ¥{{ formatCents(voidTarget.tea_fee_cents) }}）并局数 −1；不影响操作人差额。
+        </p>
+        <el-input
+          v-model="voidNote"
+          maxlength="200"
+          placeholder="可选：填写撤回原因（留空可直接点下方确认）"
+          :disabled="submittingVoid"
+          @keydown.enter.prevent
+        />
+        <div class="void-dialog-hint muted small">为防止误触，请手动点击「确认撤回」（已禁用回车直接确认）。</div>
+      </div>
+      <template #footer>
+        <el-button :disabled="submittingVoid" @click="voidDialogOpen = false">取消</el-button>
+        <el-button type="warning" :loading="submittingVoid" @click="confirmVoidSession">
+          确认撤回
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -325,6 +384,11 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 const loading = ref(false)
+const voidDialogOpen = ref(false)
+const voidTarget = ref<SessionRow | null>(null)
+const voidNote = ref('')
+const submittingVoid = ref(false)
+const restoringId = ref<number | null>(null)
 
 async function loadOperators() {
   try {
@@ -386,28 +450,56 @@ function sessionRowClass({ row }: { row: SessionRow }): string {
   return row.voided ? 'is-voided-row' : ''
 }
 
-async function voidSession(row: SessionRow) {
-  let note = ''
+function openVoidDialog(row: SessionRow) {
+  if (submittingVoid.value || restoringId.value !== null) return
+  voidTarget.value = row
+  voidNote.value = ''
+  voidDialogOpen.value = true
+}
+
+async function confirmVoidSession() {
+  if (!voidTarget.value || submittingVoid.value) return
+  const target = voidTarget.value
+  submittingVoid.value = true
   try {
-    const answer = await ElMessageBox.prompt(
-      `确定撤回「${row.name}」这一局？系统将为 ${row.player_count} 名玩家写一条「撤回局退茶水」冲正流水，` +
-        `原路退回押金/赠金（每人 ¥${formatCents(row.tea_fee_cents)}）并局数 -1；不影响操作人差额。`,
-      '撤回这一局',
+    await sessionApi.void(target.id, voidNote.value.trim())
+    voidDialogOpen.value = false
+    voidTarget.value = null
+    voidNote.value = ''
+    ElMessage.success('已撤回这一局，茶水已原路退回')
+    await load()
+    app.notifySessionCreated()
+  } finally {
+    submittingVoid.value = false
+  }
+}
+
+async function restoreSession(row: SessionRow) {
+  if (restoringId.value !== null || submittingVoid.value) return
+  try {
+    await ElMessageBox.confirm(
+      `确定恢复「${row.name}」（原操作人：${row.operator?.display_name || '-'}）？` +
+        `系统将为 ${row.player_count} 名玩家按原茶水（每人 ¥${formatCents(row.tea_fee_cents)}，先扣赠金再扣现金）重新扣费并局数 +1，` +
+        `同时恢复原操作人的场次、茶水与分红归属。`,
+      '恢复已撤回的场次',
       {
-        confirmButtonText: '确认撤回',
+        confirmButtonText: '确认恢复',
         cancelButtonText: '取消',
-        type: 'warning',
-        inputPlaceholder: '可选：填写撤回原因（留空可直接确认）',
+        type: 'info',
       },
     )
-    note = String(answer.value || '').trim()
   } catch {
     return
   }
-  await sessionApi.void(row.id, note)
-  ElMessage.success('已撤回这一局，茶水已原路退回')
-  await load()
-  app.notifySessionCreated()
+  restoringId.value = row.id
+  try {
+    await sessionApi.restore(row.id)
+    ElMessage.success(`已恢复「${row.name}」，茶水与操作人归属已还原`)
+    await load()
+    app.notifySessionCreated()
+  } finally {
+    restoringId.value = null
+  }
 }
 
 function switchTab(next: 'deposits' | 'sessions') {
@@ -552,6 +644,23 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   padding-top: 14px;
+}
+
+.void-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.void-dialog-desc {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--el-text-color-regular);
+}
+
+.void-dialog-hint {
+  margin-top: -2px;
 }
 
 .page.embedded {
